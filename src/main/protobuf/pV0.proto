@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+import "scalapb/scalapb.proto";
+//import "google/protobuf/timestamp.proto";
+//import "google/protobuf/any.proto";
+
+package chatter.serialization;
+
+message MessagePB {
+  int64 authId = 1;
+  bytes cnt = 2;
+  int64 when = 3;
+  string tz = 4;
+}
+
+message ChatTimelinePB {
+  repeated MessagePB history = 1;
+  map<string, int64> versions = 2;
+}
