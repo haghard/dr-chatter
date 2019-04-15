@@ -5,15 +5,16 @@ package typed
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
-import chatter.actors.ChatTimelineWriter.{ AskForShards, WriteResponses }
-import chatter.actors.typed.ChatTimelineReplicator.{ ReadChatTimeline, ReplicatorOps }
+import chatter.actors.typed.ChatTimelineReplicator.{ ReadChatTimeline, ReplCommand }
 import akka.actor.typed.scaladsl.adapter._
+import chatter.actors.typed.ChatTimelineWriter.{ AskForShards, WriteResponses }
+
 import scala.concurrent.duration._
 
 object ChatTimelineReader {
 
   sealed trait ReadResponses
-  case class KnownShards(shards: Vector[Shard[ReplicatorOps]]) extends ReadResponses
+  case class KnownShards(shards: Vector[Shard[ReplCommand]]) extends ReadResponses
   case class RSuccess(history: Vector[Message]) extends ReadResponses
   case class RNotFound(chatName: String) extends ReadResponses
   case class RFailure(chatName: String) extends ReadResponses
@@ -23,9 +24,12 @@ object ChatTimelineReader {
       val readTO = 50.millis
 
       ctx.log.info("★ ★ ★  Spawned Reader")
+
+      //ctx.ask(AskForShards(ctx.self))
+
       writer ! AskForShards(ctx.self)
 
-      def read(chatId: Long, shards: Vector[Shard[ReplicatorOps]], replyTo: ActorRef[ReadResponses]): Behavior[ReadResponses] = {
+      def read(chatId: Long, shards: Vector[Shard[ReplCommand]], replyTo: ActorRef[ReadResponses]): Behavior[ReadResponses] = {
         val ind = (chatId % shards.size).toInt
         ctx.log.info("read chat-{} -> ind:{}", chatId, ind)
         shards(ind) match {
@@ -37,7 +41,7 @@ object ChatTimelineReader {
         active(chatId, shards)
       }
 
-      def active(chatId: Long, shards: Vector[Shard[ReplicatorOps]]): Behavior[ReadResponses] =
+      def active(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[ReadResponses] =
         Behaviors.receiveMessage[ReadResponses] {
           case RSuccess(h) ⇒
             ctx.log.warning("chat-{} = {}", chatId, h.size)
