@@ -2,7 +2,9 @@ package chatter
 
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
-import chatter.actors.{ ChatTimelineReader, ChatTimelineWriter }
+import chatter.actors.ChatTimelineWriter.WriteResponses
+import chatter.actors.typed.ChatTimelineReader
+import chatter.actors.ChatTimelineWriter
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.duration._
@@ -59,15 +61,16 @@ object Runner extends App {
 
   Helpers.waitForAllNodesUp(node1, node2, node3)
 
-  val w1 = node1.actorOf(ChatTimelineWriter.props(node1, Vector(shards(0), shards(1)), shards(2), ids), "alpha-writer")
-  val w2 = node2.actorOf(ChatTimelineWriter.props(node2, Vector(shards(0), shards(2)), shards(1), ids), "betta-writer")
-  val w3 = node3.actorOf(ChatTimelineWriter.props(node3, Vector(shards(1), shards(2)), shards(0), ids), "gamma-writer")
+  import akka.actor.typed.scaladsl.adapter._
+  val w1 = node1.actorOf(ChatTimelineWriter.props(node1, Vector(shards(0), shards(1)), shards(2), ids), "alpha-writer").toTyped[WriteResponses]
+  val w2 = node2.actorOf(ChatTimelineWriter.props(node2, Vector(shards(0), shards(2)), shards(1), ids), "betta-writer").toTyped[WriteResponses]
+  val w3 = node3.actorOf(ChatTimelineWriter.props(node3, Vector(shards(1), shards(2)), shards(0), ids), "gamma-writer").toTyped[WriteResponses]
 
   Helpers.wait(10.second * 1)
 
-  //node1.actorOf(ChatTimelineReader.props(w1), "alpha-reader")
-  //node2.actorOf(ChatTimelineReader.props(w2), "betta-reader")
-  //node3.actorOf(ChatTimelineReader.props(w3), "gamma-reader")
+  node1.spawn(ChatTimelineReader(w1), "alpha-reader")
+  node2.spawn(ChatTimelineReader(w2), "betta-reader")
+  node3.spawn(ChatTimelineReader(w3), "gamma-reader")
 
   Helpers.wait(15.second)
 

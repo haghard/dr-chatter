@@ -1,10 +1,10 @@
 package akka.cluster.ddata
 
-import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
+import java.util.concurrent.{ ThreadLocalRandom, TimeUnit }
 
 import akka.cluster.ddata.DurableStore._
-import akka.actor.{Actor, ActorLogging, Props, RootActorPath, Stash}
-import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
+import akka.actor.{ Actor, ActorLogging, RootActorPath, Stash }
+import akka.serialization.{ SerializationExtension, SerializerWithStringManifest }
 import akka.util.ByteString
 import com.typesafe.config.Config
 import org.rocksdb.RocksDB
@@ -109,7 +109,7 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
         val valueBts = serializer.toBinary(data)
 
         if (ThreadLocalRandom.current.nextDouble > .97)
-          log.warning("key: {}", keyWithReplica)
+          log.warning("write key: {}", keyWithReplica)
 
         db.put(rocksWriteOpts, keyBts, valueBts)
         db.flush(flushOps) //for durability

@@ -1,14 +1,14 @@
 package akka.cluster.ddata
 
 import java.io.File
-import java.nio.file.{Files, Paths}
+import java.nio.file.{ Files, Paths }
 import java.sql.DriverManager
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{ Actor, ActorLogging }
 import akka.cluster.Cluster
-import akka.cluster.ddata.DurableStore.{DurableDataEnvelope, LoadAll, LoadAllCompleted, LoadData, LoadFailed, Store}
-import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
+import akka.cluster.ddata.DurableStore.{ DurableDataEnvelope, LoadAll, LoadAllCompleted, LoadData, LoadFailed, Store }
+import akka.serialization.{ SerializationExtension, SerializerWithStringManifest }
 import chatter.actors.typed.ChatTimelineReplicator
 import chatter.crdt.ChatTimeline
 import com.typesafe.config.Config
