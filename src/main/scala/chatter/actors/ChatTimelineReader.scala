@@ -2,15 +2,14 @@ package chatter
 package actors
 
 import ChatTimelineReader._
+
 import scala.concurrent.duration._
 import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
-import chatter.actors.ChatTimelineWriter.{ ReadLocalChatTimeline, ReadRemoteChatTimeline }
-import chatter.actors.ChatTimelineReader.{ AllShards, AskForShards, LocalChatTimelineResponse, NotFoundChatTimelineResponse, RemoteChatTimelineResponse }
+import chatter.actors.ChatTimelineWriter.{ AskForShards, ReadLocalChatTimeline, ReadRemoteChatTimeline }
+import chatter.actors.ChatTimelineReader.{ AllShards, LocalChatTimelineResponse, NotFoundChatTimelineResponse, RemoteChatTimelineResponse }
 
 object ChatTimelineReader {
-
-  case object AskForShards
 
   case class AllShards(shards: Vector[Shard])
 

@@ -1,4 +1,5 @@
-package chatter.actors
+package chatter
+package actors
 
 import java.time.ZoneId
 
@@ -6,33 +7,32 @@ import akka.cluster.Cluster
 import akka.routing.ConsistentHashingGroup
 import java.util.concurrent.ThreadLocalRandom
 
-import akka.actor.{ Actor, ActorLogging, ActorSystem, Props }
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
-import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
-import chatter.actors.ChatTimelineReader.{ AllShards, AskForShards }
-import chatter.{ LocalShard, RemoteShard, Shard }
+import akka.cluster.routing.{ClusterRouterGroup, ClusterRouterGroupSettings}
+import chatter.actors.ChatTimelineReader.AllShards
 
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
 import scala.util.Random
+import akka.actor.typed.scaladsl.adapter._
+import chatter.actors.typed.ChatTimelineReplicator
 
 object ChatTimelineWriter {
 
-  sealed trait WriteProtocol
+  sealed trait RResponses
 
-  case class Write(chatName: String, when: Long, tz: String, authorId: Long, content: String) extends WriteProtocol
+  sealed trait ReplicatorProtocol
 
-  case class WriteSuccess(chatName: String) extends WriteProtocol
+  case object AskForShards extends ReplicatorProtocol
 
-  case class WriteFailure(chatName: String, errorMsg: String) extends WriteProtocol
+  case class WriteChatTimeline(chatName: String, when: Long, tz: String, authorId: Long, content: String) extends ReplicatorProtocol
+  case class ReadLocalChatTimeline(chatName: String) extends ReplicatorProtocol
+  case class ReadRemoteChatTimeline(chatName: String) extends ReplicatorProtocol
 
-  case class WriteTimeout(chatName: String) extends WriteProtocol
-
-  sealed trait ReadProtocol
-
-  case class ReadLocalChatTimeline(chatName: String) extends ReadProtocol
-
-  case class ReadRemoteChatTimeline(chatName: String) extends ReadProtocol
+  case class WriteSuccess(chatName: String) extends ReplicatorProtocol with RResponses
+  case class WriteFailure(chatName: String, errorMsg: String) extends ReplicatorProtocol with RResponses
+  case class WriteTimeout(chatName: String) extends ReplicatorProtocol with RResponses
 
   def routeeName(shard: String) = s"$shard-replicator"
 
@@ -52,8 +52,8 @@ class ChatTimelineWriter(system: ActorSystem, localShards: Vector[String], proxy
 
   val rnd = new Random(System.currentTimeMillis)
 
-  val shards: Vector[Shard] = {
-    val zero = new TreeSet[Shard]()((a: Shard, b: Shard) ⇒ a.name.compareTo(b.name))
+  val shards: Vector[Shard0[ReplicatorProtocol]] = {
+    val zero = new TreeSet[Shard0[ReplicatorProtocol]]()((a: Shard0[ReplicatorProtocol], b: Shard0[ReplicatorProtocol]) ⇒ a.name.compareTo(b.name))
     localShards.foldLeft(zero)(_ + createLocalReplicator(_)) + createProxy(proxy)
   }.toVector
 
@@ -67,7 +67,10 @@ class ChatTimelineWriter(system: ActorSystem, localShards: Vector[String], proxy
     //supervision ???
     val name = routeeName(shard)
     log.info("★ ★ ★  local replicator for {}", shard)
-    LocalShard(shard, system.actorOf(ChatTimelineReplicator.props(system, shard), name))
+    val a: akka.actor.typed.ActorRef[ReplicatorProtocol] =
+      system.spawn(ChatTimelineReplicator(system, shard, self.toTyped[RResponses]), name)
+    LocalShard0(shard, a)
+    //LocalShard(shard, system.actorOf(ChatTimelineReplicator.props(system, shard), name))
   }
 
   //we don't allocate anything just return an actorRef on existing actor
@@ -83,12 +86,15 @@ class ChatTimelineWriter(system: ActorSystem, localShards: Vector[String], proxy
           allowLocalRoutees = false, //important
           useRoles          = shard)
       ).props(), s"router-$shard")
-    RemoteShard(shard, remoteProxyRouter)
+
+    import akka.actor.typed.scaladsl.adapter._
+    RemoteShard0(shard, remoteProxyRouter.toTyped[ReplicatorProtocol])
+    //RemoteShard(shard, remoteProxyRouter)
   }
 
   def awaitStart: Receive = {
     case AskForShards ⇒
-      sender() ! AllShards(shards)
+    //sender() ! AllShards(shards)
     case 'StartWriting ⇒
       write(1l)
   }
@@ -98,19 +104,22 @@ class ChatTimelineWriter(system: ActorSystem, localShards: Vector[String], proxy
     val shard = shards(chatId % shards.size)
 
     val userId = ThreadLocalRandom.current.nextLong(0l, 10l)
-    val msg = Write(s"chat-$chatId", System.currentTimeMillis, ZoneId.systemDefault.getId, userId, rnd.nextString(1024 * 1))
+
+    val msg = WriteChatTimeline(s"chat-$chatId", System.currentTimeMillis, ZoneId.systemDefault.getId,
+                                                 userId, rnd.nextString(1024 * 1))
+    import akka.actor.typed.scaladsl.adapter._
     shard match {
-      case LocalShard(_, ref) ⇒
+      case LocalShard0(_, ref) ⇒
         ref ! msg
-      case RemoteShard(_, ref) ⇒
-        ref ! ConsistentHashableEnvelope(message = msg, hashKey = chatId)
+      case RemoteShard0(_, ref) ⇒
+        ref.toUntyped ! ConsistentHashableEnvelope(message = msg, hashKey = chatId)
     }
     context.become(awaitResponse(n))
   }
 
   def awaitResponse(n: Long): Receive = {
     case AskForShards ⇒
-      sender() ! AllShards(shards)
+      //sender() ! AllShards(shards)
       log.warning("★ ★ ★  stop writer ★ ★ ★")
       context.stop(self)
 
@@ -118,7 +127,7 @@ class ChatTimelineWriter(system: ActorSystem, localShards: Vector[String], proxy
       write(n + 1l)
 
     /*if (context.system.scheduler ne null)
-        context.system.scheduler.scheduleOnce(10.millis, new Runnable {
+        context.system.scheduler.scheduleOnce(100.millis, new Runnable {
           override def run = write(n + 1l)
         })*/
 

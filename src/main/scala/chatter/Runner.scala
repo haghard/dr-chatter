@@ -15,7 +15,7 @@ object Runner extends App {
 
   //each node holds 2/3 of all data
   val shards = Vector("alpha", "betta", "gamma")
-  val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+  val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
   val commonConfig = ConfigFactory.parseString(
     s"""
@@ -63,11 +63,11 @@ object Runner extends App {
   val w2 = node2.actorOf(ChatTimelineWriter.props(node2, Vector(shards(0), shards(2)), shards(1), ids), "betta-writer")
   val w3 = node3.actorOf(ChatTimelineWriter.props(node3, Vector(shards(1), shards(2)), shards(0), ids), "gamma-writer")
 
-  Helpers.wait(20.second * 1)
+  Helpers.wait(10.second * 1)
 
-  node1.actorOf(ChatTimelineReader.props(w1), "alpha-reader")
-  node2.actorOf(ChatTimelineReader.props(w2), "betta-reader")
-  node3.actorOf(ChatTimelineReader.props(w3), "gamma-reader")
+  //node1.actorOf(ChatTimelineReader.props(w1), "alpha-reader")
+  //node2.actorOf(ChatTimelineReader.props(w2), "betta-reader")
+  //node3.actorOf(ChatTimelineReader.props(w3), "gamma-reader")
 
   Helpers.wait(15.second)
 

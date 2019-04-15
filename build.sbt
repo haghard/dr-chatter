@@ -20,7 +20,7 @@ val `dr-chatter` = project
     //javaOptions in run ++= Seq("-Xms128m", "-Xmx1024m"),
 
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
+      "com.typesafe.akka" %% "akka-cluster-typed" % akkaVersion,
       "com.typesafe.akka" %% "akka-distributed-data" % akkaVersion,
       "com.github.TanUkkii007" %% "akka-cluster-custom-downing" % "0.0.12",
 

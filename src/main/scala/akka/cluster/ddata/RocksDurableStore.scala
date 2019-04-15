@@ -1,24 +1,19 @@
 package akka.cluster.ddata
 
-import java.nio.file.{ Files, Paths }
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
 
 import akka.cluster.ddata.DurableStore._
-import akka.actor.{ Actor, ActorLogging, Props, RootActorPath, Stash }
-import akka.serialization.{ SerializationExtension, SerializerWithStringManifest }
+import akka.actor.{Actor, ActorLogging, Props, RootActorPath, Stash}
+import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import akka.util.ByteString
 import com.typesafe.config.Config
 import org.rocksdb.RocksDB
 import org.rocksdb._
 import chatter.actors.RocksDBActor
+import chatter.actors.typed.ChatTimelineReplicator
 import chatter.crdt.ChatTimeline
 
 import scala.util.control.NonFatal
-
-object RocksDurableStore {
-  def props(config: Config): Props =
-    Props(new RocksDurableStore(config))
-}
 
 /*
 https://github.com/facebook/rocksdb/wiki/RocksJava-Basics
@@ -45,7 +40,8 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
     .setCompactionStyle(CompactionStyle.UNIVERSAL)
 
   val segments = self.path.elements.toSeq
-  val replicaName = segments(segments.size - 2)
+  val replicaName = segments.find(_.contains(ChatTimelineReplicator.postfix))
+    .getOrElse(throw new Exception("Couldn't find needed segment"))
 
   val flushOps = new FlushOptions().setWaitForFlush(true)
 
@@ -108,8 +104,13 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
   def active(db: RocksDB): Receive = {
     case Store(key, data, reply) ⇒
       try {
-        val keyBts = (key + SEPARATOR + replicaName).getBytes(ByteString.UTF_8)
+        val keyWithReplica = (key + SEPARATOR + replicaName)
+        val keyBts = keyWithReplica.getBytes(ByteString.UTF_8)
         val valueBts = serializer.toBinary(data)
+
+        if (ThreadLocalRandom.current.nextDouble > .97)
+          log.warning("key: {}", keyWithReplica)
+
         db.put(rocksWriteOpts, keyBts, valueBts)
         db.flush(flushOps) //for durability
         reply.foreach { r ⇒ r.replyTo ! r.successMsg }

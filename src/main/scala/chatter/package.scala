@@ -1,8 +1,19 @@
 import akka.actor.ActorRef
 import akka.cluster.ddata.Key
+import chatter.actors.ChatTimelineWriter.{ RResponses, ReplicatorProtocol }
 import chatter.crdt.ChatTimeline
 
 package object chatter {
+
+  trait Shard0[T] {
+    def name: String
+
+    def ref: akka.actor.typed.ActorRef[T]
+  }
+
+  case class LocalShard0(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol]) extends Shard0[ReplicatorProtocol]
+
+  case class RemoteShard0(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol]) extends Shard0[ReplicatorProtocol]
 
   trait Shard {
     def name: String

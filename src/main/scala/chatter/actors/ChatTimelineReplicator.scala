@@ -8,8 +8,8 @@ import com.typesafe.config.{ Config, ConfigFactory }
 import akka.cluster.ddata.{ Replicator, ReplicatorSettings }
 import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, Props }
 import chatter.actors.ChatTimelineReplicator.{ LocalReadCtx, RemoteReadCtx, WriteCtx }
-import chatter.actors.ChatTimelineWriter.{ ReadLocalChatTimeline, ReadRemoteChatTimeline, Write, WriteFailure, WriteSuccess, WriteTimeout }
-import akka.cluster.ddata.Replicator.{ Get, GetFailure, GetSuccess, ModifyFailure, NotFound, ReadLocal, Update, UpdateSuccess, UpdateTimeout, WriteLocal }
+import chatter.actors.ChatTimelineWriter.{ ReadLocalChatTimeline, ReadRemoteChatTimeline, WriteChatTimeline, WriteFailure, WriteSuccess, WriteTimeout }
+import akka.cluster.ddata.Replicator.{ Get, GetFailure, GetSuccess, ModifyFailure, NotFound, ReadLocal, StoreFailure, Update, UpdateSuccess, UpdateTimeout, WriteLocal }
 import ChatTimelineReplicator._
 import chatter.actors.ChatTimelineReader.{ GetFailureChatTimelineResponse, LocalChatTimelineResponse, NotFoundChatTimelineResponse, RemoteChatTimelineResponse }
 import chatter.crdt.ChatTimeline
@@ -98,7 +98,7 @@ class ChatTimelineReplicator(system: ActorSystem, shardName: String) extends Act
 
   val config = createConfig(replicatorName, shardName, classOf[akka.cluster.ddata.RocksDurableStore].getName)
   val dbClass = config.getString("durable.store-actor-class")
-  val akkaReplicator = system.actorOf(Replicator.props(ReplicatorSettings(config)), replicatorName)
+  val akkaReplicator = system.actorOf(akka.cluster.ddata.Replicator.props(ReplicatorSettings(config)), replicatorName)
 
   override def preStart(): Unit =
     log.info("★ ★ ★ Start replicator {} backed by {}", replicatorName, dbClass)
@@ -106,7 +106,7 @@ class ChatTimelineReplicator(system: ActorSystem, shardName: String) extends Act
   override def receive: Receive = write orElse read
 
   def write: Receive = {
-    case msg: Write ⇒
+    case msg: WriteChatTimeline ⇒
       val Key = ChatKey(msg.chatName)
       val cId = UUID.randomUUID.toString
       val replyTo = sender()
@@ -119,6 +119,9 @@ class ChatTimelineReplicator(system: ActorSystem, shardName: String) extends Act
 
     case ModifyFailure(k @ ChatKey(_), errorMessage, cause, Some(WriteCtx(_, startTs, replyTo))) ⇒
       replyTo ! WriteFailure(k.chatName, errorMessage)
+
+    case StoreFailure(k @ ChatKey(_), Some(WriteCtx(_, startTs, replyTo))) ⇒
+      replyTo ! WriteFailure(k.chatName, "StoreFailure")
 
     case UpdateTimeout(k @ ChatKey(_), Some(WriteCtx(cId, startTs, replyTo))) ⇒
       replyTo ! WriteTimeout(k.chatName)
@@ -178,5 +181,6 @@ class ChatTimelineReplicator(system: ActorSystem, shardName: String) extends Act
     case NotFound(k @ ChatKey(_), Some(RemoteReadCtx(cId, startTs, replyTo))) ⇒
       log.error("NotFound by {}", k.chatName)
       replyTo ! NotFoundChatTimelineResponse(k.chatName)
+
   }
 }
