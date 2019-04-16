@@ -5,32 +5,18 @@ package typed
 import java.time.ZoneId
 import java.util.concurrent.ThreadLocalRandom
 
-import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
-import chatter.actors.typed.ChatTimelineReplicator.{ ReplCommand, WriteMessage }
 
 import scala.util.Random
 
 import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.adapter._
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
-import chatter.actors.typed.ChatTimelineReader.{ KnownShards, ReadResponses }
 
 object ChatTimelineWriter {
 
-  sealed trait WriteResponses
-
-  case object StartWriting extends WriteResponses
-
-  case class AskForShards(replyTo: ActorRef[ReadResponses]) extends WriteResponses
-
-  case class WSuccess(chatName: String) extends WriteResponses
-
-  case class WFailure(chatName: String, errorMsg: String) extends WriteResponses
-
-  case class WTimeout(chatName: String) extends WriteResponses
-
-  def apply(shards: Vector[Shard[ReplCommand]], ids: Seq[Int]): Behavior[WriteResponses] =
+  def apply(shards: Vector[Shard[ReplicatorCommand]], ids: Seq[Int]): Behavior[WriteResponses] =
     Behaviors.setup { ctx ⇒
 
       val writeTO = 20.millis
@@ -39,7 +25,7 @@ object ChatTimelineWriter {
       Behaviors.withTimers[WriteResponses] { timers ⇒
         timers.startSingleTimer(ctx.self.path.toString, StartWriting, 2.second)
 
-        def write(n: Long, shards: Vector[Shard[ReplCommand]]): Behavior[WriteResponses] = {
+        def write(n: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[WriteResponses] = {
           val chatId = ids(ThreadLocalRandom.current.nextInt(ids.size))
           val userId = ThreadLocalRandom.current.nextLong(0l, 10l)
 
@@ -57,7 +43,7 @@ object ChatTimelineWriter {
           await(n, shards)
         }
 
-        def await(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[WriteResponses] =
+        def await(chatId: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[WriteResponses] =
           Behaviors.receiveMessage[WriteResponses] {
             case AskForShards(replyTo) ⇒
               replyTo ! KnownShards(shards)

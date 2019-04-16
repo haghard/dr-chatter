@@ -7,7 +7,7 @@ import akka.actor.ExtendedActorSystem
 import akka.cluster.ddata.protobuf.SerializationSupport
 import akka.serialization.Serializer
 import chatter.crdt.{ ChatTimeline, VersionVector }
-import chatter.serialization.pV0._
+import chatter.serialization.v1._
 
 import scala.collection.immutable.TreeMap
 import com.google.protobuf

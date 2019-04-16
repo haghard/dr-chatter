@@ -1,0 +1,38 @@
+syntax = "proto3";
+package chatter.actors.typed.ReplicatorProtocol.v1;
+
+import "scalapb/scalapb.proto";
+import "google/protobuf/timestamp.proto";
+
+option (scalapb.options) = {
+    single_file: true
+    flat_package: true
+    preamble: "sealed trait ReplicatorCommand"
+};
+
+
+/*
+case class WriteMessage(chatName: String, when: Long, tz: String, authId: Long, content: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand
+case class ReadChatTimeline(chatName: String, replyTo: ActorRef[ReadReply]) extends ReplicatorCommand
+*/
+
+message WriteMessagePB {
+    option (scalapb.message).extends = "ReplicatorCommand";
+    string chatName = 1;
+    int64 when = 2;
+    string  tz = 3;
+    int64  authId = 4;
+    string  content = 5;
+    //ActorRef[WriteResponses]
+    bytes replyTo = 6;
+}
+
+
+message ReadChatTimelinePB {
+    option (scalapb.message).extends = "ReplicatorCommand";
+    string chatName = 1;
+    //ActorRef[ReadReply]
+    bytes replyTo = 2;
+}
+
+

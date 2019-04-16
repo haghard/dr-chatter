@@ -12,31 +12,23 @@ import chatter.crdt.ChatTimeline
 import com.typesafe.config.{ Config, ConfigFactory }
 import akka.actor.typed.scaladsl.adapter._
 import akka.cluster.ddata.typed.scaladsl.Replicator._
-import chatter.actors.typed.ChatTimelineReader.{ RFailure, RNotFound, RSuccess, ReadResponses }
-import chatter.actors.typed.ChatTimelineWriter.{ WFailure, WSuccess, WTimeout, WriteResponses }
 
 object ChatTimelineReplicator {
 
   val name = "replicator"
 
-  sealed trait ReplCommand
-
-  case class WriteMessage(chatName: String, when: Long, tz: String, authId: Long, content: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
-
-  case class ReadChatTimeline(chatName: String, replyTo: ActorRef[ReadResponses]) extends ReplCommand
-
   //internal messages protocol
-  private case class RWriteSuccessReq(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
+  private case class RWriteSuccessReq(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand
 
-  private case class RWriteFailureReq(chatName: String, errorMsg: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
+  private case class RWriteFailureReq(chatName: String, errorMsg: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand
 
-  private case class RWriteTimeoutReq(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
+  private case class RWriteTimeoutReq(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand
 
-  private case class RChatTimelineResponse(history: Vector[Message], replyTo: ActorRef[ReadResponses]) extends ReplCommand
+  private case class RChatTimelineResponse(history: Vector[Message], replyTo: ActorRef[ReadReply]) extends ReplicatorCommand
 
-  private case class RNotFoundChatTimelineResponse(chatName: String, replyTo: ActorRef[ReadResponses]) extends ReplCommand
+  private case class RNotFoundChatTimelineResponse(chatName: String, replyTo: ActorRef[ReadReply]) extends ReplicatorCommand
 
-  private case class RGetFailureChatTimelineResponse(error: String, replyTo: ActorRef[ReadResponses]) extends ReplCommand
+  private case class RGetFailureChatTimelineResponse(error: String, replyTo: ActorRef[ReadReply]) extends ReplicatorCommand
 
   def replicatorConfig(shardName: String, clazz: String): Config =
     ConfigFactory.parseString(
@@ -91,7 +83,7 @@ object ChatTimelineReplicator {
          | }
         """.stripMargin)
 
-  def apply(shardName: String): Behavior[ReplCommand] = {
+  def apply(shardName: String): Behavior[ReplicatorCommand] = {
     Behaviors.setup { cnx ⇒
       val wc = WriteLocal //WriteTo(2, 3.seconds)
       val rc = ReadLocal //ReadFrom(2, 3.seconds)
@@ -122,18 +114,18 @@ object ChatTimelineReplicator {
 
       val readAdapter: ActorRef[GetResponse[ChatTimeline]] =
         cnx.messageAdapter {
-          case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatKey(_), Some(replyTo: ActorRef[ReadResponses] @unchecked)) ⇒
+          case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatKey(_), Some(replyTo: ActorRef[ReadReply] @unchecked)) ⇒
             RChatTimelineResponse(r.get[ChatTimeline](k).timeline, replyTo)
-          case akka.cluster.ddata.Replicator.GetFailure(k @ ChatKey(_), Some(replyTo: ActorRef[ReadResponses] @unchecked)) ⇒
+          case akka.cluster.ddata.Replicator.GetFailure(k @ ChatKey(_), Some(replyTo: ActorRef[ReadReply] @unchecked)) ⇒
             RGetFailureChatTimelineResponse(s"GetFailure: ${k.chatName}", replyTo)
-          case akka.cluster.ddata.Replicator.NotFound(k @ ChatKey(_), Some(replyTo: ActorRef[ReadResponses] @unchecked)) ⇒
+          case akka.cluster.ddata.Replicator.NotFound(k @ ChatKey(_), Some(replyTo: ActorRef[ReadReply] @unchecked)) ⇒
             RNotFoundChatTimelineResponse(k.chatName, replyTo)
           case other ⇒
             cnx.log.error("Unsupported message form replicator: {}", other)
             throw new Exception(s"Unsupported message form replicator: ${other}")
         }
 
-      val write = Behaviors.receiveMessagePartial[ReplCommand] {
+      val write = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case msg: WriteMessage ⇒
           val Key = ChatKey(msg.chatName)
           akkaReplicator ! Update(Key, ChatTimeline(), wc, writeAdapter, Some(msg.replyTo)) { tl ⇒
@@ -151,7 +143,7 @@ object ChatTimelineReplicator {
           Behaviors.same
       }
 
-      val read = Behaviors.receiveMessagePartial[ReplCommand] {
+      val read = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case r: ReadChatTimeline ⇒
           val Key = ChatKey(r.chatName)
           akkaReplicator ! Get(Key, rc, readAdapter, Some(r.replyTo))

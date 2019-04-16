@@ -1,0 +1,32 @@
+syntax = "proto3";
+package chatter.actors.typed.WriterProtocol.v1;
+
+
+import "scalapb/scalapb.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+option (scalapb.options) = {
+    single_file: true
+    flat_package: true
+    preamble: "sealed trait WriteResponses"
+
+    //preamble: "sealed trait Command"
+    //preamble: "sealed trait Event"
+};
+
+message WSuccessPB {
+    option (scalapb.message).extends = "WriteResponses";
+    string chatName = 1;
+}
+
+message WFailurePB {
+    option (scalapb.message).extends = "WriteResponses";
+    string chatName =  1;
+    string errorMsg =  2;
+}
+
+message WTimeoutPB {
+    option (scalapb.message).extends = "WriteResponses";
+    string chatName = 1;
+}

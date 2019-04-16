@@ -5,9 +5,8 @@ import chatter.actors.RocksDBActor
 import com.typesafe.config.ConfigFactory
 import akka.actor.typed.scaladsl.Behaviors
 import akka.routing.ConsistentHashingGroup
-import chatter.actors.typed.ChatTimelineReplicator.ReplCommand
 import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
-import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter }
+import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter, ReplicatorCommand }
 
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
@@ -63,7 +62,7 @@ object Runner extends App {
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
           def localReplicator(shard: String) = {
-            val ref: akka.actor.typed.ActorRef[ReplCommand] =
+            val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
               ctx.spawn(ChatTimelineReplicator(shard), shard)
             ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path)
             LocalShard(shard, ref)
@@ -80,16 +79,22 @@ object Runner extends App {
                   useRoles          = shard)
               ).props(), s"proxy-$shard")
             ctx.system.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path)
-            RemoteShard(shard, remoteProxyRouter.toTyped[ReplCommand])
+            RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
           }
 
-          val ss: Vector[Shard[ReplCommand]] = {
-            val zero = new TreeSet[Shard[ReplCommand]]()((a: Shard[ReplCommand], b: Shard[ReplCommand]) ⇒ a.name.compareTo(b.name))
+          val ss: Vector[Shard[ReplicatorCommand]] = {
+            val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
             Seq(shards(0), shards(1))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(2))
           }.toVector
 
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
-          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
+
+          //ctx.system.toUntyped.actorSelection(ActorPath.fromString(w.path.toSerializationFormat))
+
+          //ActorRef[ReplicatorCommand]
+          //w.path
+
+          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader").path.toString
           Behaviors.ignore
       }
     }
@@ -104,7 +109,7 @@ object Runner extends App {
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
           def localReplicator(shard: String) = {
-            val ref: akka.actor.typed.ActorRef[ReplCommand] =
+            val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
               ctx.spawn(ChatTimelineReplicator(shard), shard)
             ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path.toString)
             LocalShard(shard, ref)
@@ -121,11 +126,11 @@ object Runner extends App {
                   useRoles          = shard)
               ).props(), s"proxy-$shard")
             ctx.system.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path.toString)
-            RemoteShard(shard, remoteProxyRouter.toTyped[ReplCommand])
+            RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
           }
 
-          val ss: Vector[Shard[ReplCommand]] = {
-            val zero = new TreeSet[Shard[ReplCommand]]()((a: Shard[ReplCommand], b: Shard[ReplCommand]) ⇒ a.name.compareTo(b.name))
+          val ss: Vector[Shard[ReplicatorCommand]] = {
+            val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
             Seq(shards(0), shards(2))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(1))
           }.toVector
 
@@ -145,7 +150,7 @@ object Runner extends App {
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
           def localReplicator(shard: String) = {
-            val ref: akka.actor.typed.ActorRef[ReplCommand] =
+            val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
               ctx.spawn(ChatTimelineReplicator(shard), shard)
             ctx.log.info("★ ★ ★  local replicator for {}", ref.path)
             LocalShard(shard, ref)
@@ -162,11 +167,11 @@ object Runner extends App {
                   useRoles          = shard)
               ).props(), s"proxy-$shard")
             ctx.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path)
-            RemoteShard(shard, remoteProxyRouter.toTyped[ReplCommand])
+            RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
           }
 
-          val ss: Vector[Shard[ReplCommand]] = {
-            val zero = new TreeSet[Shard[ReplCommand]]()((a: Shard[ReplCommand], b: Shard[ReplCommand]) ⇒ a.name.compareTo(b.name))
+          val ss: Vector[Shard[ReplicatorCommand]] = {
+            val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
             Seq(shards(1), shards(2))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(0))
           }.toVector
 

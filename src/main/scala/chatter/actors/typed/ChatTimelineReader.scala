@@ -5,21 +5,13 @@ package typed
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
-import chatter.actors.typed.ChatTimelineReplicator.{ ReadChatTimeline, ReplCommand }
 import akka.actor.typed.scaladsl.adapter._
-import chatter.actors.typed.ChatTimelineWriter.{ AskForShards, WriteResponses }
 
 import scala.concurrent.duration._
 
 object ChatTimelineReader {
 
-  sealed trait ReadResponses
-  case class KnownShards(shards: Vector[Shard[ReplCommand]]) extends ReadResponses
-  case class RSuccess(history: Vector[Message]) extends ReadResponses
-  case class RFailure(chatName: String) extends ReadResponses
-  case class RNotFound(chatName: String) extends ReadResponses
-
-  def apply(writer: ActorRef[WriteResponses], delay: FiniteDuration): Behavior[ReadResponses] = {
+  def apply(writer: ActorRef[WriteResponses], delay: FiniteDuration): Behavior[ReadReply] = {
     Behaviors.setup { ctx ⇒
       val readTO = 50.millis
 
@@ -28,7 +20,7 @@ object ChatTimelineReader {
       //ctx.ask(AskForShards(ctx.self))
       ctx.scheduleOnce(delay, writer, AskForShards(ctx.self))
 
-      def read(chatId: Long, shards: Vector[Shard[ReplCommand]], replyTo: ActorRef[ReadResponses]): Behavior[ReadResponses] = {
+      def read(chatId: Long, shards: Vector[Shard[ReplicatorCommand]], replyTo: ActorRef[ReadReply]): Behavior[ReadReply] = {
         val ind = (chatId % shards.size).toInt
         ctx.log.info("read chat-{} -> ind:{}", chatId, ind)
         shards(ind) match {
@@ -40,8 +32,8 @@ object ChatTimelineReader {
         await(chatId, shards)
       }
 
-      def await(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[ReadResponses] =
-        Behaviors.receiveMessage[ReadResponses] {
+      def await(chatId: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[ReadReply] =
+        Behaviors.receiveMessage[ReadReply] {
           case RSuccess(h) ⇒
             ctx.log.warning("chat-{} = {}", chatId, h.size)
             read(chatId + 1l, shards, ctx.self)
@@ -56,7 +48,7 @@ object ChatTimelineReader {
             Behaviors.unhandled
         }
 
-      Behaviors.receiveMessagePartial[ReadResponses] {
+      Behaviors.receiveMessagePartial[ReadReply] {
         case KnownShards(shards) ⇒
           ctx.log.info("KnownShards: {}", shards.toString)
           read(0l, shards, ctx.self)
