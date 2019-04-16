@@ -2,12 +2,11 @@ package chatter
 package serializer
 
 import java.nio.charset.StandardCharsets
-
 import akka.actor.ExtendedActorSystem
 import akka.cluster.ddata.protobuf.SerializationSupport
 import akka.serialization.Serializer
 import chatter.crdt.{ ChatTimeline, VersionVector }
-import chatter.serialization.v1._
+import chatter.actors.typed.Replicator.v1._
 
 import scala.collection.immutable.TreeMap
 import com.google.protobuf
@@ -31,7 +30,6 @@ class ChatTimelineSerializer(val system: ExtendedActorSystem) extends Serializer
     }
 
   override def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef = {
-    //val start = System.currentTimeMillis
     val pb = ChatTimelinePB.parseFrom(bytes)
     val history = pb.history.toVector.map(m ⇒ Message(m.authId, m.cnt.toStringUtf8, m.when, m.tz))
     val versions = pb.versions./:(TreeMap.empty[Node, Long](Implicits.nodeOrd)) { (acc, m) ⇒

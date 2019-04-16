@@ -1,7 +1,6 @@
 syntax = "proto3";
 
-package chatter.serialization;
-
+package chatter.actors.typed.Replicator;
 
 import "scalapb/scalapb.proto";
 //import "google/protobuf/timestamp.proto";

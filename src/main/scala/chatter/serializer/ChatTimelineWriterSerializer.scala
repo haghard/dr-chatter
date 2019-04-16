@@ -4,10 +4,10 @@ package serializer
 import akka.actor.ExtendedActorSystem
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
-import chatter.actors.typed.WriterProtocol.v1._
 import akka.actor.typed.scaladsl.adapter._
 import akka.remote.WireFormats.ActorRefData
 import chatter.actors.typed.{ AskForShards, ReadReply, WFailure, WSuccess, WTimeout }
+import chatter.actors.typed.Replicator.v1._
 
 class ChatTimelineWriterSerializer(val system: ExtendedActorSystem) extends SerializerWithStringManifest {
 

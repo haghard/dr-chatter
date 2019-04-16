@@ -20,7 +20,7 @@ object Runner extends App {
   val shards = Vector("alpha", "betta", "gamma")
   val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
-  val writeDuration = 30.second * 1
+  val writeDuration = 60.second * 1
 
   val commonConfig = ConfigFactory.parseString(
     s"""
