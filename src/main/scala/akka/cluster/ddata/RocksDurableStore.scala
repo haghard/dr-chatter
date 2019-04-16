@@ -1,6 +1,6 @@
 package akka.cluster.ddata
 
-import java.util.concurrent.{ ThreadLocalRandom, TimeUnit }
+import java.util.concurrent.TimeUnit
 
 import akka.cluster.ddata.DurableStore._
 import akka.actor.{ Actor, ActorLogging, RootActorPath, Stash }
@@ -10,16 +10,9 @@ import com.typesafe.config.Config
 import org.rocksdb.RocksDB
 import org.rocksdb._
 import chatter.actors.RocksDBActor
-import chatter.actors.typed.ChatTimelineReplicator
 import chatter.crdt.ChatTimeline
 
 import scala.util.control.NonFatal
-
-/*
-https://github.com/facebook/rocksdb/wiki/RocksJava-Basics
-https://github.com/facebook/rocksdb/blob/master/java/samples/src/main/java/RocksDBColumnFamilySample.java
-https://github.com/facebook/rocksdb/blob/master/java/samples/src/main/java/RocksDBSample.java
-*/
 
 class RocksDurableStore(config: Config) extends Actor with ActorLogging with Stash {
   RocksDB.loadLibrary()
@@ -114,11 +107,11 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
 
         db.put(rocksWriteOpts, keyBts, valueBts)
         db.flush(flushOps) //for durability
-        reply.foreach { r ⇒ r.replyTo ! r.successMsg }
+        reply.foreach(r ⇒ r.replyTo ! r.successMsg)
       } catch {
         case NonFatal(e) ⇒
           log.error(e, "Failed to store [{}]", key)
-          reply.foreach { r ⇒ r.replyTo ! r.failureMsg }
+          reply.foreach(r ⇒ r.replyTo ! r.failureMsg)
       }
   }
 

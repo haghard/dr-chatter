@@ -1,13 +1,13 @@
 package chatter
 
-import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.Cluster
-import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
-import akka.routing.ConsistentHashingGroup
 import chatter.actors.RocksDBActor
-import chatter.actors.typed.ChatTimelineReplicator.ReplCommand
-import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineWriter }
 import com.typesafe.config.ConfigFactory
+import akka.actor.typed.scaladsl.Behaviors
+import akka.routing.ConsistentHashingGroup
+import chatter.actors.typed.ChatTimelineReplicator.ReplCommand
+import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
+import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter }
 
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
@@ -16,13 +16,12 @@ import scala.concurrent.duration._
 //sbt "runMain chatter.Runner"
 object Runner extends App {
 
-  val systemName = "dr-chatter"
+  val systemName = "timeline"
 
-  //each node holds 2/3 of all data
   val shards = Vector("alpha", "betta", "gamma")
   val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
-  val writeDuration = 10.second * 1
+  val writeDuration = 30.second * 1
 
   val commonConfig = ConfigFactory.parseString(
     s"""
@@ -47,23 +46,25 @@ object Runner extends App {
   def rolesConfig(ind0: Int, ind1: Int) =
     ConfigFactory.parseString(s"akka.cluster.roles = [${shards(ind0)}, ${shards(ind1)}]")
 
-  /*
-    The number of failures that can be tolerated is equal to (Replication factor - 1) /2.
-    For example, with 3x replication, one failure can be tolerated; with 5x replication, two failures, and so on.
-  */
-
   import akka.actor.typed.scaladsl.adapter._
 
+  /*
+      The number of failures that can be tolerated is equal to (Replication factor - 1) /2.
+      For example, with 3x replication, one failure can be tolerated; with 5x replication, two failures, and so on.
+
+      RF for this setup is 2
+      Each node holds 2/3 of all data
+  */
   val node1 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
     Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("a", (), 2.seconds)
+      timers.startSingleTimer("initT", (), 2.seconds)
       Behaviors.receiveMessage {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
           def localReplicator(shard: String) = {
             val ref: akka.actor.typed.ActorRef[ReplCommand] =
-              ctx.spawn(chatter.actors.typed.ChatTimelineReplicator(shard), shard)
+              ctx.spawn(ChatTimelineReplicator(shard), shard)
             ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path)
             LocalShard(shard, ref)
           }
@@ -97,15 +98,14 @@ object Runner extends App {
 
   val node2 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
     Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("a", (), 2.seconds)
+      timers.startSingleTimer("initT", (), 2.seconds)
       Behaviors.receiveMessage {
         case _: Unit ⇒
-
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
           def localReplicator(shard: String) = {
             val ref: akka.actor.typed.ActorRef[ReplCommand] =
-              ctx.spawn(chatter.actors.typed.ChatTimelineReplicator(shard), shard)
+              ctx.spawn(ChatTimelineReplicator(shard), shard)
             ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path.toString)
             LocalShard(shard, ref)
           }
@@ -124,7 +124,6 @@ object Runner extends App {
             RemoteShard(shard, remoteProxyRouter.toTyped[ReplCommand])
           }
 
-          // /user/betta/replicator
           val ss: Vector[Shard[ReplCommand]] = {
             val zero = new TreeSet[Shard[ReplCommand]]()((a: Shard[ReplCommand], b: Shard[ReplCommand]) ⇒ a.name.compareTo(b.name))
             Seq(shards(0), shards(2))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(1))
@@ -140,15 +139,14 @@ object Runner extends App {
 
   val node3 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
     Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("a", (), 2.seconds)
+      timers.startSingleTimer("initT", (), 2.seconds)
       Behaviors.receiveMessage {
         case _: Unit ⇒
-
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
           def localReplicator(shard: String) = {
             val ref: akka.actor.typed.ActorRef[ReplCommand] =
-              ctx.spawn(chatter.actors.typed.ChatTimelineReplicator(shard), shard)
+              ctx.spawn(ChatTimelineReplicator(shard), shard)
             ctx.log.info("★ ★ ★  local replicator for {}", ref.path)
             LocalShard(shard, ref)
           }

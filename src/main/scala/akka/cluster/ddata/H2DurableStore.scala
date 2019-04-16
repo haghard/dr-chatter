@@ -75,11 +75,11 @@ final class H2DurableStore(config: Config) extends Actor with ActorLogging {
         prepInsert.setString(2, replicaName)
         prepInsert.setBytes(3, valueBts)
         prepInsert.execute
-        reply.foreach { sr ⇒ sr.replyTo ! sr.successMsg }
+        reply.foreach(sr ⇒ sr.replyTo ! sr.successMsg)
       } catch {
         case NonFatal(e) ⇒
           log.error(e, "Failed to store [{}]", key)
-          reply.foreach { sr ⇒ sr.replyTo ! sr.failureMsg }
+          reply.foreach(sr ⇒ sr.replyTo ! sr.failureMsg)
       }
   }
 
