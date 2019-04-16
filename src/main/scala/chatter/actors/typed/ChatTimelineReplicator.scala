@@ -38,10 +38,9 @@ object ChatTimelineReplicator {
 
   private case class RGetFailureChatTimelineResponse(error: String, replyTo: ActorRef[ReadResponses]) extends ReplCommand
 
-  def replicatorConfig(replicatorName: String, shardName: String, clazz: String): Config =
+  def replicatorConfig(shardName: String, clazz: String): Config =
     ConfigFactory.parseString(
       s"""
-         | name = $replicatorName
          |
          | role = $shardName
          |
@@ -94,19 +93,17 @@ object ChatTimelineReplicator {
 
   def apply(shardName: String): Behavior[ReplCommand] = {
     Behaviors.setup { cnx ⇒
-      val replName = s"$shardName-repl"
-
       val wc = WriteLocal //WriteTo(2, 3.seconds)
       val rc = ReadLocal //ReadFrom(2, 3.seconds)
 
       val cluster = Cluster(cnx.system.toUntyped)
       val address = cluster.selfUniqueAddress.address
       val node = Node(address.host.get, address.port.get)
-      val cnf = replicatorConfig(replName, shardName, classOf[akka.cluster.ddata.RocksDurableStore].getName)
+      val cnf = replicatorConfig(shardName, classOf[akka.cluster.ddata.RocksDurableStore].getName)
       val akkaReplicator: ActorRef[Command] = cnx.spawn(
         akka.cluster.ddata.typed.scaladsl.Replicator.behavior(ReplicatorSettings(cnf)), ChatTimelineReplicator.name)
 
-      cnx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", replName, cnf.getString("durable.store-actor-class"))
+      cnx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", akkaReplicator.path, cnf.getString("durable.store-actor-class"))
 
       val writeAdapter: ActorRef[UpdateResponse[ChatTimeline]] =
         cnx.messageAdapter {
