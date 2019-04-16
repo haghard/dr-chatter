@@ -16,14 +16,14 @@ object ChatTimelineReader {
   sealed trait ReadResponses
   case class KnownShards(shards: Vector[Shard[ReplCommand]]) extends ReadResponses
   case class RSuccess(history: Vector[Message]) extends ReadResponses
-  case class RNotFound(chatName: String) extends ReadResponses
   case class RFailure(chatName: String) extends ReadResponses
+  case class RNotFound(chatName: String) extends ReadResponses
 
   def apply(writer: ActorRef[WriteResponses]): Behavior[ReadResponses] = {
     Behaviors.setup { ctx ⇒
       val readTO = 50.millis
 
-      ctx.log.info("★ ★ ★  Spawned Reader")
+      ctx.log.info("★ ★ ★  Reader  ★ ★ ★")
 
       //ctx.ask(AskForShards(ctx.self))
 
@@ -38,15 +38,14 @@ object ChatTimelineReader {
           case RemoteShard(_, ref) ⇒
             ctx.scheduleOnce(readTO, ref.toUntyped, ConsistentHashableEnvelope(ReadChatTimeline(s"chat-$chatId", replyTo), chatId))
         }
-        active(chatId, shards)
+        await(chatId, shards)
       }
 
-      def active(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[ReadResponses] =
+      def await(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[ReadResponses] =
         Behaviors.receiveMessage[ReadResponses] {
           case RSuccess(h) ⇒
             ctx.log.warning("chat-{} = {}", chatId, h.size)
             read(chatId + 1l, shards, ctx.self)
-
           case RNotFound(name) ⇒
             ctx.log.warning("NotFoundChatTime: " + name)
             Behaviors.stopped
@@ -58,13 +57,10 @@ object ChatTimelineReader {
             Behaviors.unhandled
         }
 
-      Behaviors.receiveMessage[ReadResponses] {
+      Behaviors.receiveMessagePartial[ReadResponses] {
         case KnownShards(shards) ⇒
           ctx.log.info("KnownShards: {}", shards.toString)
           read(0l, shards, ctx.self)
-        case other ⇒
-          ctx.log.warning("Unexpected message: " + other)
-          Behaviors.unhandled
       }
     }
   }

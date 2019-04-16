@@ -23,18 +23,25 @@ case class ChatTimeline(
   }
 
   //sort 2 sorted arrays in one array preserving messages with the same ts
-  private def mergeConflicts(tlA: Vector[Message], tlB: Vector[Message]) = {
-    val index = (0 until tlA.length).find(i ⇒ tlA(i) != tlB(i))
+  private def merge0(tlA: Vector[Message], tlB: Vector[Message]) = {
+    @scala.annotation.tailrec
+    def divergedInd(a: Vector[Message], b: Vector[Message], limit: Int, i: Int = 0): Option[Int] = {
+      if (i < limit)
+        if (a(i) != b(i)) Some(i)
+        else divergedInd(a, b, limit, i + 1)
+      else None
+    }
+    val index = divergedInd(tlA, tlB, math.min(tlA.length, tlB.length))
     if (index.isDefined) {
       val i = index.get
       val (same, a) = tlA.splitAt(i)
       val (_, b) = tlB.splitAt(i)
-      var result = Vector.fill[Message](a.length + b.length)(null)
       var iA = a.length - 1
       var iB = b.length - 1
-      var ind = result.length
-      while (ind > 0) {
-        ind -= 1
+      var mergeResult = Vector.fill[Message](a.length + b.length)(null)
+      var limit = mergeResult.length
+      while (limit > 0) {
+        limit -= 1
         val elem = if (iB < 0 || (iA >= 0 && a(iA).when >= b(iB).when)) {
           iA -= 1
           a(iA + 1)
@@ -42,10 +49,9 @@ case class ChatTimeline(
           iB -= 1
           b(iB + 1)
         }
-        result = result.updated(ind, elem)
+        mergeResult = mergeResult.updated(limit, elem)
       }
-      //println("up:" + result.map(_.when).mkString(",") + " :" + result.size)
-      same ++ result
+      same ++ mergeResult
     } else if (tlA.size > tlB.size) tlA
     else tlB
   }
@@ -54,7 +60,7 @@ case class ChatTimeline(
     Requires a bounded semilattice (or idempotent commutative monoid).
     We rely on commutivity to ensure that machine A merging with machine B yields the same result as machine B merging with machine A.
     We need associativity to ensure we obtain the correct result when three or more machines are merging data.
-    We need an identity element to initialise empty counters.
+    We need an identity element to initialise empty timeline.
     Finally, we need idempotency, to ensure that if two machines hold the same data
     in a per-machine ChatTimeline, merging them will not lead to an incorrect result.
   */
@@ -67,7 +73,7 @@ case class ChatTimeline(
     } else if (versions <> that.versions) {
       //println(s"${versions.elems.mkString(",")} vs ${that.versions.elems.mkString(",")}")
       //val s = System.currentTimeMillis
-      val r = mergeConflicts(timeline, that.timeline)
+      val r = merge0(timeline, that.timeline)
       //val l = System.currentTimeMillis - s
       //println(s"${versions.elems.map { case (n,v) => s"${n.port}:${v}"}.mkString(",")} vs ${that.versions.elems.map { case (n,v) => s"${n.port}:${v}"}.mkString(",")}")
       ChatTimeline(r, versions merge that.versions)

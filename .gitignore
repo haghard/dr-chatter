@@ -3,6 +3,5 @@
 /.idea/
 .idea/
 target/
-db
-rocks-db
-h2-db
+rocks-db/
+h2-db/

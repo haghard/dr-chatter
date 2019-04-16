@@ -32,10 +32,11 @@ object ChatTimelineWriter {
   def apply(system: ActorSystem, localShards: Vector[String], proxy: String, ids: Seq[Int]): Behavior[WriteResponses] =
     Behaviors.setup { ctx ⇒
 
-      val writeTO = 100.millis
+      val writeTO = 30.millis
       val rnd = new Random(System.currentTimeMillis)
 
       system.actorOf(RocksDBActor.props, RocksDBActor.name)
+      //system.actorOf()
 
       Behaviors.withTimers[WriteResponses] { timers ⇒
         timers.startSingleTimer("", StartWriting, 2.second)
@@ -77,10 +78,10 @@ object ChatTimelineWriter {
               ctx.scheduleOnce(writeTO, ref.toUntyped, ConsistentHashableEnvelope(msg, chatId))
             //ref.toUntyped ! ConsistentHashableEnvelope(msg, chatId)
           }
-          awaitResponse(n, shards)
+          await(n, shards)
         }
 
-        def awaitResponse(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[WriteResponses] =
+        def await(chatId: Long, shards: Vector[Shard[ReplCommand]]): Behavior[WriteResponses] =
           Behaviors.receiveMessage[WriteResponses] {
             case AskForShards(replyTo) ⇒
               replyTo ! KnownShards(shards)

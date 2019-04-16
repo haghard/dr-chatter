@@ -20,10 +20,11 @@ object RocksDBActor {
   def props = Props(new RocksDBActor)
 }
 
+//akka://dr-chatter@127.0.0.1:2550/user/rock-db
 class RocksDBActor extends Actor with ActorLogging {
   RocksDB.loadLibrary()
 
-  val dbDir = "./rocks-db"
+  val dbDir = "./" + RocksDBActor.name
   Try(Files.createDirectory(Paths.get(s"./$dbDir")))
 
   val dir = new File(s"${dbDir}/rocks-${Cluster(context.system).selfAddress.port.get}")

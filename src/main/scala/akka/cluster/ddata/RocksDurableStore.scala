@@ -104,12 +104,12 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
   def active(db: RocksDB): Receive = {
     case Store(key, data, reply) ⇒
       try {
-        val keyWithReplica = (key + SEPARATOR + replicaName)
+        val keyWithReplica = key + SEPARATOR + replicaName
         val keyBts = keyWithReplica.getBytes(ByteString.UTF_8)
         val valueBts = serializer.toBinary(data)
 
-        if (ThreadLocalRandom.current.nextDouble > .97)
-          log.warning("write key: {}", keyWithReplica)
+        /*if (ThreadLocalRandom.current.nextDouble > .985)
+          log.warning("write key: {}", keyWithReplica)*/
 
         db.put(rocksWriteOpts, keyBts, valueBts)
         db.flush(flushOps) //for durability
