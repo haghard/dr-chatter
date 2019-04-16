@@ -74,8 +74,9 @@ object ChatTimelineReplicator {
          |
          |  store-actor-class = $clazz
          |
-         |  #store-actor-class = akka.cluster.ddata.RocksDurableStore
-         |  #store-actor-class = akka.cluster.ddata.H2DurableStore
+         |  #akka.cluster.ddata.RocksDurableStore
+         |  #akka.cluster.ddata.H2DurableStore
+         |  #akka.cluster.ddata.LmdbDurableStore
          |
          |  pinned-store {
          |    type = PinnedDispatcher
