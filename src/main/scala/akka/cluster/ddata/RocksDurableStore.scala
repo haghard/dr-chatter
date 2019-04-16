@@ -24,7 +24,7 @@ https://github.com/facebook/rocksdb/blob/master/java/samples/src/main/java/Rocks
 class RocksDurableStore(config: Config) extends Actor with ActorLogging with Stash {
   RocksDB.loadLibrary()
 
-  val SEPARATOR = '.'
+  val SEPARATOR = '$'
   val serialization = SerializationExtension(context.system)
   val serializer = serialization.serializerFor(classOf[DurableDataEnvelope]).asInstanceOf[SerializerWithStringManifest]
   val manifest = serializer.manifest(new DurableDataEnvelope(Replicator.Internal.DeletedData))
@@ -40,13 +40,14 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
     .setCompactionStyle(CompactionStyle.UNIVERSAL)
 
   val segments = self.path.elements.toSeq
-  val replicaName = segments.find(_.contains(ChatTimelineReplicator.postfix))
-    .getOrElse(throw new Exception("Couldn't find needed segment"))
 
+  val replicaName = segments(1)
   val flushOps = new FlushOptions().setWaitForFlush(true)
 
+  log.warning("RocksDurableStore:{}", replicaName)
+
   def awaitDB: Receive = {
-    val path = RootActorPath(context.self.path.address) / "user" / RocksDBActor.name //"rocks-db"
+    val path = RootActorPath(context.self.path.address) / "user" / RocksDBActor.name
     context.actorSelection(path) ! RocksDBActor.AskRocksDb
 
     {

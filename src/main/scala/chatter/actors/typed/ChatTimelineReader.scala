@@ -19,15 +19,14 @@ object ChatTimelineReader {
   case class RFailure(chatName: String) extends ReadResponses
   case class RNotFound(chatName: String) extends ReadResponses
 
-  def apply(writer: ActorRef[WriteResponses]): Behavior[ReadResponses] = {
+  def apply(writer: ActorRef[WriteResponses], delay: FiniteDuration): Behavior[ReadResponses] = {
     Behaviors.setup { ctx ⇒
       val readTO = 50.millis
 
       ctx.log.info("★ ★ ★  Reader  ★ ★ ★")
 
       //ctx.ask(AskForShards(ctx.self))
-
-      writer ! AskForShards(ctx.self)
+      ctx.scheduleOnce(delay, writer, AskForShards(ctx.self))
 
       def read(chatId: Long, shards: Vector[Shard[ReplCommand]], replyTo: ActorRef[ReadResponses]): Behavior[ReadResponses] = {
         val ind = (chatId % shards.size).toInt

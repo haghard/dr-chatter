@@ -15,7 +15,7 @@ object RocksDBActor {
 
   case class RespRocksDb(db: RocksDB)
 
-  val name = "rock-db"
+  val name = "rocks-db"
 
   def props = Props(new RocksDBActor)
 }
@@ -36,6 +36,8 @@ class RocksDBActor extends Actor with ActorLogging {
     .setCompactionStyle(CompactionStyle.UNIVERSAL)
 
   val db = RocksDB.open(options, dir.getPath)
+
+  //log.warning("RocksDBActor")
 
   override def receive: Receive = {
     case AskRocksDb ⇒

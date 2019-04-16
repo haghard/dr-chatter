@@ -2,7 +2,6 @@ package chatter
 package actors
 package typed
 
-import akka.actor.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.cluster.Cluster
@@ -18,20 +17,20 @@ import chatter.actors.typed.ChatTimelineWriter.{ WFailure, WSuccess, WTimeout, W
 
 object ChatTimelineReplicator {
 
-  val postfix = "-repl"
+  val name = "replicator"
 
   sealed trait ReplCommand
 
-  case class WriteMessage(chatName: String, when: Long, tz: String, authId: Long, content: String) extends ReplCommand
+  case class WriteMessage(chatName: String, when: Long, tz: String, authId: Long, content: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
 
   case class ReadChatTimeline(chatName: String, replyTo: ActorRef[ReadResponses]) extends ReplCommand
 
   //internal messages protocol
-  private case class RWriteSuccessReq(chatName: String) extends ReplCommand
+  private case class RWriteSuccessReq(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
 
-  private case class RWriteFailureReq(chatName: String, errorMsg: String) extends ReplCommand
+  private case class RWriteFailureReq(chatName: String, errorMsg: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
 
-  private case class RWriteTimeoutReq(chatName: String) extends ReplCommand
+  private case class RWriteTimeoutReq(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplCommand
 
   private case class RChatTimelineResponse(history: Vector[Message], replyTo: ActorRef[ReadResponses]) extends ReplCommand
 
@@ -92,7 +91,7 @@ object ChatTimelineReplicator {
          | }
         """.stripMargin)
 
-  def apply(system: ActorSystem, shardName: String, replyTo: ActorRef[WriteResponses]): Behavior[ReplCommand] = {
+  def apply(shardName: String): Behavior[ReplCommand] = {
     Behaviors.setup { cnx ⇒
       val replName = s"$shardName-repl"
 
@@ -103,22 +102,21 @@ object ChatTimelineReplicator {
       val address = cluster.selfUniqueAddress.address
       val node = Node(address.host.get, address.port.get)
       val cnf = replicatorConfig(replName, shardName, classOf[akka.cluster.ddata.RocksDurableStore].getName)
-      val akkaReplicator: ActorRef[Command] = system.spawn(
-        akka.cluster.ddata.typed.scaladsl.Replicator.behavior(ReplicatorSettings(cnf)), replName)
+      val akkaReplicator: ActorRef[Command] = cnx.spawn(
+        akka.cluster.ddata.typed.scaladsl.Replicator.behavior(ReplicatorSettings(cnf)), ChatTimelineReplicator.name)
 
-      cnx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", replName,
-                                                                   cnf.getString("durable.store-actor-class"))
+      cnx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", replName, cnf.getString("durable.store-actor-class"))
 
       val writeAdapter: ActorRef[UpdateResponse[ChatTimeline]] =
         cnx.messageAdapter {
-          case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatKey(_), _) ⇒
-            RWriteSuccessReq(k.chatName) //WriteSuccess
-          case akka.cluster.ddata.Replicator.ModifyFailure(k @ ChatKey(_), _, cause, _) ⇒
-            RWriteFailureReq(k.chatName, cause.getMessage) //WriteFailure
-          case akka.cluster.ddata.Replicator.UpdateTimeout(k @ ChatKey(_), _) ⇒
-            RWriteTimeoutReq(k.chatName) //WriteTimeout
-          case akka.cluster.ddata.Replicator.StoreFailure(k @ ChatKey(_), _) ⇒
-            RWriteFailureReq(k.chatName, "StoreFailure") //WriteFailure
+          case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatKey(_), Some(replyTo: ActorRef[WriteResponses] @unchecked)) ⇒
+            RWriteSuccessReq(k.chatName, replyTo)
+          case akka.cluster.ddata.Replicator.ModifyFailure(k @ ChatKey(_), _, cause, Some(replyTo: ActorRef[WriteResponses] @unchecked)) ⇒
+            RWriteFailureReq(k.chatName, cause.getMessage, replyTo)
+          case akka.cluster.ddata.Replicator.UpdateTimeout(k @ ChatKey(_), Some(replyTo: ActorRef[WriteResponses] @unchecked)) ⇒
+            RWriteTimeoutReq(k.chatName, replyTo)
+          case akka.cluster.ddata.Replicator.StoreFailure(k @ ChatKey(_), Some(replyTo: ActorRef[WriteResponses] @unchecked)) ⇒
+            RWriteFailureReq(k.chatName, "StoreFailure", replyTo)
           case other ⇒
             cnx.log.error("Unsupported message form replicator: {}", other)
             throw new Exception(s"Unsupported message form replicator: $other")
@@ -140,18 +138,18 @@ object ChatTimelineReplicator {
       val write = Behaviors.receiveMessagePartial[ReplCommand] {
         case msg: WriteMessage ⇒
           val Key = ChatKey(msg.chatName)
-          akkaReplicator ! Update(Key, ChatTimeline(), wc, writeAdapter, None) { tl ⇒
+          akkaReplicator ! Update(Key, ChatTimeline(), wc, writeAdapter, Some(msg.replyTo)) { tl ⇒
             tl + (Message(msg.authId, msg.content, msg.when, msg.tz), node)
           }
           Behaviors.same
         case w: RWriteSuccessReq ⇒
-          replyTo ! WSuccess(w.chatName)
+          w.replyTo ! WSuccess(w.chatName)
           Behaviors.same
         case w: RWriteFailureReq ⇒
-          replyTo ! WFailure(w.chatName, w.errorMsg)
+          w.replyTo ! WFailure(w.chatName, w.errorMsg)
           Behaviors.same
         case w: RWriteTimeoutReq ⇒
-          replyTo ! WTimeout(w.chatName)
+          w.replyTo ! WTimeout(w.chatName)
           Behaviors.same
       }
 

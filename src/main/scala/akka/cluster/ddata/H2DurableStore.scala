@@ -55,11 +55,9 @@ final class H2DurableStore(config: Config) extends Actor with ActorLogging {
 
   val segments = self.path.elements.toSeq
 
-  val replicaName = segments.find(_.contains(ChatTimelineReplicator.postfix))
-    .getOrElse(throw new Exception("Couldn't find needed segment"))
+  val replicaName = segments(1)
 
   override def postStop(): Unit = {
-    log.error("postStop")
     con.close
   }
 
