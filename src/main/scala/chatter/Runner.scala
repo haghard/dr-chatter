@@ -1,7 +1,7 @@
 package chatter
 
 import akka.cluster.Cluster
-import chatter.actors.RocksDBActor
+import chatter.actors.RocksDBBehavior
 import com.typesafe.config.ConfigFactory
 import akka.routing.ConsistentHashingGroup
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
@@ -11,6 +11,18 @@ import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTi
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.adapter._
+import chatter.actors.RocksDBBehavior.InitRocksDb
+
+/*
+You can use Cluster Sharding and DData with roles. So, let's say that you go with 10 roles, 10,000 entities in each role. You would then start Replicators on the nodes with corresponding nodes. You would also start Sharding on the nodes with corresponding roles. On a node that doesn't have the a role you would start a sharding proxy for such role.
+
+When you want to send a message to an entity you first need to decide which role to use for that message. Can be simple hashCode modulo algorithm. Then you delegate the message to the corresponding Sharding region or proxy actor.
+
+You have defined the Props for the entities and there you pass in the Replicator corresponding to the role that the entity belongs to, i.e. the entity takes the right Replicator ActorRef as constructor parameter.
+
+If you don't need the strict guarantees of "only one entity" that Cluster Sharding provides, and prefer better availability in case of network partitions, you could use a consistent hashing group router instead of Cluster Sharding. You would have one router per role, and decide router similar as above. Then the entities (routees of the router) would have to subscribe to changes from DData to get notified of when a peer entity has changed something, since you can have more than one alive at the same time.
+
+ */
 
 //runMain chatter.Runner
 //sbt "runMain chatter.Runner"
@@ -21,7 +33,7 @@ object Runner extends App {
   val shards = Vector("alpha", "betta", "gamma")
   val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
-  val writeDuration = 30.second * 1
+  val writeDuration = 10.second * 1
 
   val commonConfig = ConfigFactory.parseString(
     s"""
@@ -49,30 +61,30 @@ object Runner extends App {
   def spawnReplicator(shard: String, ctx: ActorContext[Unit]) = {
     val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
       ctx.spawn(ChatTimelineReplicator(shard), shard)
-    ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path)
+    ctx.system.log.info("★ ★ ★  spawn local replicator for {}", ref.path)
     LocalShard(shard, ref)
   }
 
-  def spawnProxyReplicator(shard: String, ctx: ActorContext[Unit]) = {
+  def spawnProxyReplicator(remoteShardName: String, localShardsSize: Int, ctx: ActorContext[Unit]) = {
     val remoteProxyRouter = ctx.actorOf(
       ClusterRouterGroup(
         ConsistentHashingGroup(Nil),
         ClusterRouterGroupSettings(
-          totalInstances    = 2,
-          routeesPaths      = List(s"/user/$shard"),
+          totalInstances    = localShardsSize,
+          routeesPaths      = List(s"/user/$remoteShardName"),
           allowLocalRoutees = false, //important
-          useRoles          = shard)
-      ).props(), s"proxy-$shard")
-    ctx.system.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path)
-    RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
+          useRoles          = remoteShardName)
+      ).props(), s"proxy-$remoteShardName")
+    ctx.system.log.info("★ ★ ★  spawn remote replicator for {}", remoteProxyRouter.path)
+    RemoteShard(remoteShardName, remoteProxyRouter.toTyped[ReplicatorCommand])
   }
 
   def spawnShards(local: Seq[String], remote: String, ctx: ActorContext[Unit]): Vector[Shard[ReplicatorCommand]] = {
-    val ss: Vector[Shard[ReplicatorCommand]] = {
+    val r: Vector[Shard[ReplicatorCommand]] = {
       val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-      local./:(zero)(_ + spawnReplicator(_, ctx)) + spawnProxyReplicator(remote, ctx)
+      local./:(zero)(_ + spawnReplicator(_, ctx)) + spawnProxyReplicator(remote, local.size, ctx)
     }.toVector
-    ss
+    r
   }
 
   /*
@@ -82,30 +94,37 @@ object Runner extends App {
       RF for this setup is 2
       Each node holds 2/3 of all data
   */
-  val node1 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
-    Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("init-2550", (), 2.seconds)
-      Behaviors.receiveMessage {
-        case _: Unit ⇒
-          ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
+  val node1 = akka.actor.typed.ActorSystem(
+    Behaviors.setup[Unit] { context ⇒
+      context.log.info("{} started and ready to join cluster", context.system.name)
 
-          val ss = spawnShards(Seq(shards(0), shards(1)), shards(2), ctx)
-          val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
+      Behaviors.withTimers[Unit] { timers ⇒
+        timers.startSingleTimer("init-2550", (), 2.seconds)
 
-          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
+        Behaviors.receive { (context, _) ⇒
+          context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
+          //case _: Unit ⇒
+          //ctx.actorOf(RocksDBBehavior.props, RocksDBBehavior.name)
+
+          val ss = spawnShards(Seq(shards(0), shards(1)), shards(2), context)
+          val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
+
+          context.spawn(ChatTimelineReader(w, writeDuration), "reader")
+
+          //Behaviors.setup[AskRocksDb] { c ⇒
 
           Behaviors.ignore
+        }
       }
-    }
+    }, systemName, portConfig(2550).withFallback(rolesConfig(0, 1)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
 
-  }, systemName, portConfig(2550).withFallback(rolesConfig(0, 1)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
+  val node2 = akka.actor.typed.ActorSystem(
+    Behaviors.setup[Unit] { ctx ⇒
+      Behaviors.withTimers[Unit] { timers ⇒
+        timers.startSingleTimer("init-2551", (), 2.seconds)
 
-  val node2 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
-    Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("init-2551", (), 2.seconds)
-      Behaviors.receiveMessage {
-        case _: Unit ⇒
-          ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
+        Behaviors.receive { (context, _) ⇒
+          context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
 
           val ss = spawnShards(Seq(shards(0), shards(2)), shards(1), ctx)
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
@@ -113,16 +132,17 @@ object Runner extends App {
           ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
 
           Behaviors.ignore
+        }
       }
-    }
-  }, systemName, portConfig(2551).withFallback(rolesConfig(0, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
+    }, systemName, portConfig(2551).withFallback(rolesConfig(0, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
 
-  val node3 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
-    Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("init-2552", (), 2.seconds)
-      Behaviors.receiveMessage {
-        case _: Unit ⇒
-          ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
+  val node3 = akka.actor.typed.ActorSystem(
+    Behaviors.setup[Unit] { ctx ⇒
+      Behaviors.withTimers[Unit] { timers ⇒
+        timers.startSingleTimer("init-2552", (), 2.seconds)
+
+        Behaviors.receive { (context, _) ⇒
+          context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
 
           val ss = spawnShards(Seq(shards(1), shards(2)), shards(0), ctx)
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
@@ -130,9 +150,9 @@ object Runner extends App {
           ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
 
           Behaviors.ignore
+        }
       }
-    }
-  }, systemName, portConfig(2552).withFallback(rolesConfig(1, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
+    }, systemName, portConfig(2552).withFallback(rolesConfig(1, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
 
   val node1Cluster = Cluster(node1.toUntyped)
   val node2Cluster = Cluster(node2.toUntyped)

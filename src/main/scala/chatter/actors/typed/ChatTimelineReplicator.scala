@@ -55,8 +55,9 @@ object ChatTimelineReplicator {
 
   def apply(shardName: String): Behavior[ReplicatorCommand] = {
     Behaviors.setup { cxt ⇒
+      import scala.concurrent.duration._
       val wc = WriteLocal // WriteTo(2, 3.seconds)
-      val rc = ReadLocal // ReadFrom(2, 3.seconds)
+      val rc = ReadLocal //ReadFrom(2, 3.seconds)
 
       val cluster = Cluster(cxt.system.toUntyped)
       val address = cluster.selfUniqueAddress.address

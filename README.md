@@ -26,3 +26,11 @@ https://github.com/facebook/rocksdb/blob/master/java/samples/src/main/java/Rocks
 https://www.cockroachlabs.com/blog/consistency-model/
 https://www.cockroachlabs.com/blog/cockroachdb-on-rocksd/
 https://www.cockroachlabs.com/blog/sql-in-cockroachdb-mapping-table-data-to-key-value-storage/
+
+
+#Akka-cluster
+https://scalac.io/split-brain-scenarios-with-akka-scala/
+
+
+#Idea
+https://groups.google.com/forum/#!topic/akka-user/MO-4XhwhAN0

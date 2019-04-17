@@ -9,9 +9,8 @@ import akka.util.ByteString
 import com.typesafe.config.Config
 import org.rocksdb.RocksDB
 import org.rocksdb._
-import chatter.actors.RocksDBActor
+import chatter.actors.RocksDBBehavior
 import chatter.crdt.ChatTimeline
-
 import scala.util.control.NonFatal
 
 class RocksDurableStore(config: Config) extends Actor with ActorLogging with Stash {
@@ -26,25 +25,21 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
     .setSync(true)
     .setDisableWAL(false)
 
-  val options = new Options()
-    .setCreateIfMissing(true)
-    .setMaxBackgroundCompactions(10)
-    .setCompressionType(CompressionType.SNAPPY_COMPRESSION)
-    .setCompactionStyle(CompactionStyle.UNIVERSAL)
-
   val segments = self.path.elements.toSeq
 
   val replicaName = segments(1)
   val flushOps = new FlushOptions().setWaitForFlush(true)
 
-  log.warning("RocksDurableStore:{}", replicaName)
-
   def awaitDB: Receive = {
-    val path = RootActorPath(context.self.path.address) / "user" / RocksDBActor.name
-    context.actorSelection(path) ! RocksDBActor.AskRocksDb
+    import akka.actor.typed.scaladsl.adapter._
+
+    //TODO: get rid of it (Receptionist)
+    val path = RootActorPath(context.self.path.address) / "user" / RocksDBBehavior.name
+    context.actorSelection(path) ! RocksDBBehavior.InitRocksDb(self.toTyped[RocksDBBehavior.RocksDbReply])
 
     {
-      case RocksDBActor.RocksDbReply(db) ⇒
+      case RocksDBBehavior.RocksDbReply(db) ⇒
+        log.warning("RocksDb for {} has been installed", replicaName)
         unstashAll()
         context.become(load(db))
       case _ ⇒
@@ -102,7 +97,7 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
         val keyBts = keyWithReplica.getBytes(ByteString.UTF_8)
         val valueBts = serializer.toBinary(data)
 
-        /*if (ThreadLocalRandom.current.nextDouble > .985)
+        /*if (ThreadLocalRandom.current.nextDouble > .95)
           log.warning("write key: {}", keyWithReplica)*/
 
         db.put(rocksWriteOpts, keyBts, valueBts)
