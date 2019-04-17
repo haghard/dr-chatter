@@ -8,11 +8,11 @@ import "v1.proto";
 option (scalapb.options) = {
     single_file: true
     flat_package: true
-    preamble: "sealed trait ReplicatorCommand"
+    preamble: "sealed trait ReplicatorCommandPB"
 };
 
 message WriteMessagePB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string chatName = 1;
     int64 when = 2;
     string tz = 3;
@@ -23,21 +23,21 @@ message WriteMessagePB {
 }
 
 message ReadChatTimelinePB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string chatName = 1;
     //ActorRef[ReadReply]
     bytes replyTo = 2;
 }
 
 message RWriteSuccessPB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string chatName = 1;
     //ActorRef[WriteResponses]
     bytes replyTo = 2;
 }
 
 message RWriteFailurePB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string chatName = 1;
     string errorMsg = 2;
     //ActorRef[WriteResponses]
@@ -45,28 +45,28 @@ message RWriteFailurePB {
 }
 
 message RWriteTimeoutPB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string chatName = 1;
     //ActorRef[WriteResponses]
     bytes replyTo = 2;
 }
 
 message RChatTimelineReplyPB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     repeated MessagePB history = 1;
     //ActorRef[ReadReply]
     bytes replyTo = 2;
 }
 
 message RNotFoundChatTimelineReplyPB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string chatName = 1;
     // ActorRef[ReadReply]
     bytes replyTo = 2;
 }
 
 message RGetFailureChatTimelineReplyPB {
-    option (scalapb.message).extends = "ReplicatorCommand";
+    option (scalapb.message).extends = "ReplicatorCommandPB";
     string error = 1;
     //ActorRef[ReadReply]
     bytes replyTo =2 ;

@@ -9,24 +9,21 @@ import "google/protobuf/any.proto";
 option (scalapb.options) = {
     single_file: true
     flat_package: true
-    preamble: "sealed trait WriteResponses"
-
-    //preamble: "sealed trait Command"
-    //preamble: "sealed trait Event"
+    preamble: "sealed trait WriteResponsesPB"
 };
 
 message WSuccessPB {
-    option (scalapb.message).extends = "WriteResponses";
+    option (scalapb.message).extends = "WriteResponsesPB";
     string chatName = 1;
 }
 
 message WFailurePB {
-    option (scalapb.message).extends = "WriteResponses";
+    option (scalapb.message).extends = "WriteResponsesPB";
     string chatName =  1;
     string errorMsg =  2;
 }
 
 message WTimeoutPB {
-    option (scalapb.message).extends = "WriteResponses";
+    option (scalapb.message).extends = "WriteResponsesPB";
     string chatName = 1;
 }
