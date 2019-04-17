@@ -46,15 +46,14 @@ object Runner extends App {
   def rolesConfig(ind0: Int, ind1: Int) =
     ConfigFactory.parseString(s"akka.cluster.roles = [${shards(ind0)}, ${shards(ind1)}]")
 
-
-  def localReplicator(shard: String, ctx: ActorContext[Unit]) = {
+  def spawnReplicator(shard: String, ctx: ActorContext[Unit]) = {
     val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
       ctx.spawn(ChatTimelineReplicator(shard), shard)
     ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path)
     LocalShard(shard, ref)
   }
 
-  def proxyReplicator(shard: String, ctx: ActorContext[Unit]) = {
+  def spawnProxyReplicator(shard: String, ctx: ActorContext[Unit]) = {
     val remoteProxyRouter = ctx.actorOf(
       ClusterRouterGroup(
         ConsistentHashingGroup(Nil),
@@ -68,6 +67,14 @@ object Runner extends App {
     RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
   }
 
+  def spawnShards(local: Seq[String], remote: String, ctx: ActorContext[Unit]): Vector[Shard[ReplicatorCommand]] = {
+    val ss: Vector[Shard[ReplicatorCommand]] = {
+      val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
+      local./:(zero)(_ + spawnReplicator(_, ctx)) + spawnProxyReplicator(remote, ctx)
+    }.toVector
+    ss
+  }
+
   /*
       The number of failures that can be tolerated is equal to (Replication factor - 1) /2.
       For example, with 3x replication, one failure can be tolerated; with 5x replication, two failures, and so on.
@@ -77,18 +84,16 @@ object Runner extends App {
   */
   val node1 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
     Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("initT", (), 2.seconds)
+      timers.startSingleTimer("init-2550", (), 2.seconds)
       Behaviors.receiveMessage {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
-          val ss: Vector[Shard[ReplicatorCommand]] = {
-            val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-            Seq(shards(0), shards(1))./:(zero)(_ + localReplicator(_, ctx)) + proxyReplicator(shards(2), ctx)
-          }.toVector
-
+          val ss = spawnShards(Seq(shards(0), shards(1)), shards(2), ctx)
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
+
           ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
+
           Behaviors.ignore
       }
     }
@@ -97,17 +102,14 @@ object Runner extends App {
 
   val node2 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
     Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("initT", (), 2.seconds)
+      timers.startSingleTimer("init-2551", (), 2.seconds)
       Behaviors.receiveMessage {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
-          val ss: Vector[Shard[ReplicatorCommand]] = {
-            val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-            Seq(shards(0), shards(2))./:(zero)(_ + localReplicator(_, ctx)) + proxyReplicator(shards(1), ctx)
-          }.toVector
-
+          val ss = spawnShards(Seq(shards(0), shards(2)), shards(1), ctx)
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
+
           ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
 
           Behaviors.ignore
@@ -117,17 +119,14 @@ object Runner extends App {
 
   val node3 = akka.actor.typed.ActorSystem(Behaviors.setup[Unit] { ctx ⇒
     Behaviors.withTimers[Unit] { timers ⇒
-      timers.startSingleTimer("initT", (), 2.seconds)
+      timers.startSingleTimer("init-2552", (), 2.seconds)
       Behaviors.receiveMessage {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
-          val ss: Vector[Shard[ReplicatorCommand]] = {
-            val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-            Seq(shards(1), shards(2))./:(zero)(_ + localReplicator(_, ctx)) + proxyReplicator(shards(0), ctx)
-          }.toVector
-
+          val ss = spawnShards(Seq(shards(1), shards(2)), shards(0), ctx)
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
+
           ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
 
           Behaviors.ignore
