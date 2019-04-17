@@ -3,13 +3,14 @@ package chatter
 import akka.cluster.Cluster
 import chatter.actors.RocksDBActor
 import com.typesafe.config.ConfigFactory
-import akka.actor.typed.scaladsl.Behaviors
 import akka.routing.ConsistentHashingGroup
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
 import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter, ReplicatorCommand }
 
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
+import akka.actor.typed.scaladsl.adapter._
 
 //runMain chatter.Runner
 //sbt "runMain chatter.Runner"
@@ -45,7 +46,27 @@ object Runner extends App {
   def rolesConfig(ind0: Int, ind1: Int) =
     ConfigFactory.parseString(s"akka.cluster.roles = [${shards(ind0)}, ${shards(ind1)}]")
 
-  import akka.actor.typed.scaladsl.adapter._
+
+  def localReplicator(shard: String, ctx: ActorContext[Unit]) = {
+    val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
+      ctx.spawn(ChatTimelineReplicator(shard), shard)
+    ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path)
+    LocalShard(shard, ref)
+  }
+
+  def proxyReplicator(shard: String, ctx: ActorContext[Unit]) = {
+    val remoteProxyRouter = ctx.actorOf(
+      ClusterRouterGroup(
+        ConsistentHashingGroup(Nil),
+        ClusterRouterGroupSettings(
+          totalInstances    = 2,
+          routeesPaths      = List(s"/user/$shard"),
+          allowLocalRoutees = false, //important
+          useRoles          = shard)
+      ).props(), s"proxy-$shard")
+    ctx.system.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path)
+    RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
+  }
 
   /*
       The number of failures that can be tolerated is equal to (Replication factor - 1) /2.
@@ -61,40 +82,13 @@ object Runner extends App {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
-          def localReplicator(shard: String) = {
-            val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
-              ctx.spawn(ChatTimelineReplicator(shard), shard)
-            ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path)
-            LocalShard(shard, ref)
-          }
-
-          def proxyReplicator(shard: String) = {
-            val remoteProxyRouter = ctx.actorOf(
-              ClusterRouterGroup(
-                ConsistentHashingGroup(Nil),
-                ClusterRouterGroupSettings(
-                  totalInstances    = 2,
-                  routeesPaths      = List(s"/user/$shard"),
-                  allowLocalRoutees = false, //important
-                  useRoles          = shard)
-              ).props(), s"proxy-$shard")
-            ctx.system.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path)
-            RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
-          }
-
           val ss: Vector[Shard[ReplicatorCommand]] = {
             val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-            Seq(shards(0), shards(1))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(2))
+            Seq(shards(0), shards(1))./:(zero)(_ + localReplicator(_, ctx)) + proxyReplicator(shards(2), ctx)
           }.toVector
 
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
-
-          //ctx.system.toUntyped.actorSelection(ActorPath.fromString(w.path.toSerializationFormat))
-
-          //ActorRef[ReplicatorCommand]
-          //w.path
-
-          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader").path.toString
+          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
           Behaviors.ignore
       }
     }
@@ -108,30 +102,9 @@ object Runner extends App {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
-          def localReplicator(shard: String) = {
-            val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
-              ctx.spawn(ChatTimelineReplicator(shard), shard)
-            ctx.system.log.info("★ ★ ★  local replicator for {}", ref.path.toString)
-            LocalShard(shard, ref)
-          }
-
-          def proxyReplicator(shard: String) = {
-            val remoteProxyRouter = ctx.actorOf(
-              ClusterRouterGroup(
-                ConsistentHashingGroup(Nil),
-                ClusterRouterGroupSettings(
-                  totalInstances    = 2,
-                  routeesPaths      = List(s"/user/$shard"),
-                  allowLocalRoutees = false, //important
-                  useRoles          = shard)
-              ).props(), s"proxy-$shard")
-            ctx.system.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path.toString)
-            RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
-          }
-
           val ss: Vector[Shard[ReplicatorCommand]] = {
             val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-            Seq(shards(0), shards(2))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(1))
+            Seq(shards(0), shards(2))./:(zero)(_ + localReplicator(_, ctx)) + proxyReplicator(shards(1), ctx)
           }.toVector
 
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
@@ -149,30 +122,9 @@ object Runner extends App {
         case _: Unit ⇒
           ctx.actorOf(RocksDBActor.props, RocksDBActor.name)
 
-          def localReplicator(shard: String) = {
-            val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
-              ctx.spawn(ChatTimelineReplicator(shard), shard)
-            ctx.log.info("★ ★ ★  local replicator for {}", ref.path)
-            LocalShard(shard, ref)
-          }
-
-          def proxyReplicator(shard: String) = {
-            val remoteProxyRouter = ctx.actorOf(
-              ClusterRouterGroup(
-                ConsistentHashingGroup(Nil),
-                ClusterRouterGroupSettings(
-                  totalInstances    = 2,
-                  routeesPaths      = List(s"/user/$shard"),
-                  allowLocalRoutees = false, //important
-                  useRoles          = shard)
-              ).props(), s"proxy-$shard")
-            ctx.log.info("★ ★ ★  remote replicator for {}", remoteProxyRouter.path)
-            RemoteShard(shard, remoteProxyRouter.toTyped[ReplicatorCommand])
-          }
-
           val ss: Vector[Shard[ReplicatorCommand]] = {
             val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
-            Seq(shards(1), shards(2))./:(zero)(_ + localReplicator(_)) + proxyReplicator(shards(0))
+            Seq(shards(1), shards(2))./:(zero)(_ + localReplicator(_, ctx)) + proxyReplicator(shards(0), ctx)
           }.toVector
 
           val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
@@ -195,7 +147,7 @@ object Runner extends App {
 
   Helpers.wait(writeDuration)
 
-  Helpers.wait(15.second)
+  Helpers.wait(20.second)
 
   node1Cluster.leave(node1Cluster.selfAddress)
   node1.terminate

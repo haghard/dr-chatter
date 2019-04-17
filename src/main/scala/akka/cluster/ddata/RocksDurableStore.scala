@@ -44,7 +44,7 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
     context.actorSelection(path) ! RocksDBActor.AskRocksDb
 
     {
-      case RocksDBActor.RespRocksDb(db) ⇒
+      case RocksDBActor.RocksDbReply(db) ⇒
         unstashAll()
         context.become(load(db))
       case _ ⇒

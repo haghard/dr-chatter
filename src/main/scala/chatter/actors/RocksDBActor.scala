@@ -5,7 +5,7 @@ import java.nio.file.{ Files, Paths }
 
 import akka.cluster.Cluster
 import akka.actor.{ Actor, ActorLogging, Props }
-import chatter.actors.RocksDBActor.{ AskRocksDb, RespRocksDb }
+import chatter.actors.RocksDBActor.{ AskRocksDb, RocksDbReply }
 import org.rocksdb._
 import scala.util.Try
 
@@ -13,7 +13,7 @@ object RocksDBActor {
 
   case object AskRocksDb
 
-  case class RespRocksDb(db: RocksDB)
+  case class RocksDbReply(db: RocksDB)
 
   val name = "rocks-db"
 
@@ -41,6 +41,6 @@ class RocksDBActor extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case AskRocksDb ⇒
-      sender() ! RespRocksDb(db)
+      sender() ! RocksDbReply(db)
   }
 }
