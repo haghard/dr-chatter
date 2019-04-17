@@ -34,3 +34,9 @@ https://scalac.io/split-brain-scenarios-with-akka-scala/
 
 #Idea
 https://groups.google.com/forum/#!topic/akka-user/MO-4XhwhAN0
+
+
+#Things to address
+Should not put each entry as a top level entry in Replicator, you'd rather should not have them all in one ORMap.
+Split them over a reasonable number of ORMaps (hashing again). 
+How it is done in Cluster Sharding: https://github.com/akka/akka/blob/master/akka-cluster-sharding/src/main/scala/akka/cluster/sharding/Shard.scala#L594 
