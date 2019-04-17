@@ -11,7 +11,6 @@ import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTi
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.adapter._
-import chatter.actors.RocksDBBehavior.InitRocksDb
 
 /*
 You can use Cluster Sharding and DData with roles. So, let's say that you go with 10 roles, 10,000 entities in each role. You would then start Replicators on the nodes with corresponding nodes. You would also start Sharding on the nodes with corresponding roles. On a node that doesn't have the a role you would start a sharding proxy for such role.
@@ -34,6 +33,7 @@ object Runner extends App {
   val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
   val writeDuration = 10.second * 1
+  val initTO = 2.seconds
 
   val commonConfig = ConfigFactory.parseString(
     s"""
@@ -99,19 +99,15 @@ object Runner extends App {
       context.log.info("{} started and ready to join cluster", context.system.name)
 
       Behaviors.withTimers[Unit] { timers ⇒
-        timers.startSingleTimer("init-2550", (), 2.seconds)
+        timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
           context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
-          //case _: Unit ⇒
-          //ctx.actorOf(RocksDBBehavior.props, RocksDBBehavior.name)
 
           val ss = spawnShards(Seq(shards(0), shards(1)), shards(2), context)
           val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
 
           context.spawn(ChatTimelineReader(w, writeDuration), "reader")
-
-          //Behaviors.setup[AskRocksDb] { c ⇒
 
           Behaviors.ignore
         }
@@ -121,7 +117,7 @@ object Runner extends App {
   val node2 = akka.actor.typed.ActorSystem(
     Behaviors.setup[Unit] { ctx ⇒
       Behaviors.withTimers[Unit] { timers ⇒
-        timers.startSingleTimer("init-2551", (), 2.seconds)
+        timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
           context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
@@ -139,7 +135,7 @@ object Runner extends App {
   val node3 = akka.actor.typed.ActorSystem(
     Behaviors.setup[Unit] { ctx ⇒
       Behaviors.withTimers[Unit] { timers ⇒
-        timers.startSingleTimer("init-2552", (), 2.seconds)
+        timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
           context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)

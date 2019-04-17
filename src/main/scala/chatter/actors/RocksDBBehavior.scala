@@ -27,7 +27,7 @@ class RocksDBBehavior(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRo
 
   val dbDir = "./" + RocksDBBehavior.name
   Try(Files.createDirectory(Paths.get(s"./$dbDir")))
-  
+
   val dir = new File(s"${dbDir}/rocks-${Cluster(ctx.asScala.system.toUntyped).selfAddress.port.get}")
 
   val options = new Options()
