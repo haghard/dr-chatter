@@ -73,36 +73,6 @@ object ChatTimelineReplicator {
 
       cxt.log.info("★ ★ ★ Start typed-replicator {} backed by {}", akkaReplicator.path, cnf.getString("durable.store-actor-class"))
 
-      /*
-      val writeAdapter: ActorRef[UpdateResponse[ChatTimeline]] =
-        cxt.messageAdapter {
-          case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatKey(_), Some(replyTo: ActorRef[WriteResponses]@unchecked)) ⇒
-            RWriteSuccess(k.chatName, replyTo)
-          case akka.cluster.ddata.Replicator.ModifyFailure(k @ ChatKey(_), _, cause, Some(replyTo: ActorRef[WriteResponses]@unchecked)) ⇒
-            RWriteFailure(k.chatName, cause.getMessage, replyTo)
-          case akka.cluster.ddata.Replicator.UpdateTimeout(k @ ChatKey(_), Some(replyTo: ActorRef[WriteResponses]@unchecked)) ⇒
-            RWriteTimeout(k.chatName, replyTo)
-          case akka.cluster.ddata.Replicator.StoreFailure(k @ ChatKey(_), Some(replyTo: ActorRef[WriteResponses]@unchecked)) ⇒
-            RWriteFailure(k.chatName, "StoreFailure", replyTo)
-          case other ⇒
-            cxt.log.error("Unsupported message form replicator: {}", other)
-            throw new Exception(s"Unsupported message form replicator: $other")
-        }
-
-      val readAdapter: ActorRef[GetResponse[ChatTimeline]] =
-        cxt.messageAdapter {
-          case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatKey(_), Some(replyTo: ActorRef[ReadReply]@unchecked)) ⇒
-            RChatTimelineReply(r.get[ChatTimeline](k).timeline, replyTo)
-          case akka.cluster.ddata.Replicator.GetFailure(k @ ChatKey(_), Some(replyTo: ActorRef[ReadReply]@unchecked)) ⇒
-            RGetFailureChatTimelineReply(s"GetFailure: ${k.chatName}", replyTo)
-          case akka.cluster.ddata.Replicator.NotFound(k @ ChatKey(_), Some(replyTo: ActorRef[ReadReply]@unchecked)) ⇒
-            RNotFoundChatTimelineReply(k.chatName, replyTo)
-          case other ⇒
-            cxt.log.error("Unsupported message form replicator: {}", other)
-            throw new Exception(s"Unsupported message form replicator: ${other}")
-        }
-      */
-
       val writeAdapter1: ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
         cxt.messageAdapter {
           case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
@@ -140,10 +110,6 @@ object ChatTimelineReplicator {
           val BucketKey = Partitioner.getBucketKey(msg.chatId)
           val chatKey = s"chat.${msg.chatId}"
 
-          /*akkaReplicator ! Update(Key, ChatTimeline(), wc, writeAdapter, Some(msg.replyTo)) { tl ⇒
-            tl + (Message(msg.authId, msg.content, msg.when, msg.tz), node)
-          }*/
-
           //ORMultiMap.empty[String, ChatTimeline]
           akkaReplicator ! Update(BucketKey, ORMap.empty[String, ChatTimeline], wc, writeAdapter1, Some((chatKey, msg.replyTo))) { bucket ⇒
             bucket.get(chatKey).fold(
@@ -166,8 +132,6 @@ object ChatTimelineReplicator {
 
       val read = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case r: ReadChatTimeline ⇒
-          //val Key = ChatKey(r.chatName)
-          //akkaReplicator ! Get(Key, rc, readAdapter, Some(r.replyTo))
           val BucketKey = Partitioner.getBucketKey(r.chatId)
           val chatKey = s"chat.${r.chatId}"
           akkaReplicator ! Get(BucketKey, rc, readAdapter1, Some((chatKey, r.replyTo)))

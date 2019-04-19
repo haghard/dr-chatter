@@ -32,7 +32,7 @@ object Runner extends App {
   val shards = Vector("alpha", "betta", "gamma")
   val ids = Seq.range(0l, 100l)
 
-  val writeDuration = 60.second * 2
+  val writeDuration = 30.second * 1
 
   val initTO = 2.seconds
 
