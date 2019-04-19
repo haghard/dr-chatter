@@ -1,6 +1,5 @@
 package chatter.actors.typed
 
-
 import akka.actor.typed.{ ActorRef, Behavior, ExtensibleBehavior, PostStop, PreRestart, Signal, Terminated, TypedActorContext }
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.cluster.Cluster
@@ -37,7 +36,7 @@ object ChatTimelineReplicatorClassic {
          |   max-delta-size = 1000
          | }
          |
-          | durable {
+         | durable {
          |  keys = ["*"]
          |  pruning-marker-time-to-live = 10 d
          |  store-actor-class = $clazz
@@ -45,16 +44,16 @@ object ChatTimelineReplicatorClassic {
          |  #akka.cluster.ddata.H2DurableStore
          |  #akka.cluster.ddata.LmdbDurableStore
          |
-          |  pinned-store {
+         |  pinned-store {
          |    type = PinnedDispatcher
          |    executor = thread-pool-executor
          |  }
          |
-          |  use-dispatcher = akka.cluster.distributed-data.durable.pinned-store
+         |  use-dispatcher = akka.cluster.distributed-data.durable.pinned-store
          |  rocks.dir = "ddata"
          |  h2.dir = "ddata"
          | }
-         """.stripMargin)
+       """.stripMargin)
 
   def writeAdapter(ctx: ActorContext[ReplicatorCommand]): ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
     ctx.messageAdapter {
@@ -75,9 +74,7 @@ object ChatTimelineReplicatorClassic {
     ctx.messageAdapter {
       case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
         val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
-        maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo)) { timeline ⇒
-          RChatTimelineReply(timeline, replyTo)
-        }
+        maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
       case akka.cluster.ddata.Replicator.GetFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
         RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
       case akka.cluster.ddata.Replicator.NotFound(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
