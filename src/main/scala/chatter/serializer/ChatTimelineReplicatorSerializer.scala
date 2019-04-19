@@ -22,14 +22,14 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
     obj match {
       case m: WriteMessage ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
-        val pb = WriteMessagePB(m.chatId /*.chatName*/ , m.when, m.tz, m.authId, m.content,
+        val pb = WriteMessagePB(m.chatId, m.when, m.tz, m.authId, m.content,
                                 com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
         //println(s"toBinary: ${m.replyTo}")
         pb.toByteArray
       case m: ReadChatTimeline ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
         //println(s"toBinary: ${m.replyTo}")
-        ReadChatTimelinePB(m.chatId /*.chatName*/ , com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
+        ReadChatTimelinePB(m.chatId, com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
           .toByteArray
       case m: RWriteSuccess ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
@@ -67,12 +67,12 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
       val pb = WriteMessagePB.parseFrom(bytes)
       val ref = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
       //println(s"fromBinary: ${ref}")
-      WriteMessage(pb.chatId /*.chatName*/ , pb.when, pb.tz, pb.authId, pb.content, ref)
+      WriteMessage(pb.chatId, pb.when, pb.tz, pb.authId, pb.content, ref)
     } else if (manifest == classOf[ReadChatTimeline].getName) {
       val pb = ReadChatTimelinePB.parseFrom(bytes)
       val pbRef = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
       //println(s"fromBinary: ${pbRef}")
-      ReadChatTimeline(pb.chatId /*.chatName*/ , pbRef.toTyped[ReadReply])
+      ReadChatTimeline(pb.chatId, pbRef.toTyped[ReadReply])
     } else if (manifest == classOf[RWriteSuccess].getName) {
       val pb = RWriteSuccessPB.parseFrom(bytes)
       val pbRef = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
