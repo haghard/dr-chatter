@@ -13,7 +13,7 @@ object ChatTimelineReader {
 
   def apply(writer: ActorRef[WriteResponses], delay: FiniteDuration): Behavior[ReadReply] = {
     Behaviors.setup { ctx ⇒
-      val readTO = 50.millis
+      val readTO = 30.millis
 
       ctx.log.info("★ ★ ★  Reader  ★ ★ ★")
 
@@ -36,7 +36,7 @@ object ChatTimelineReader {
       def await(chatId: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[ReadReply] =
         Behaviors.receiveMessage[ReadReply] {
           case RSuccess(h) ⇒
-            ctx.log.warning("chat-{} = {}", chatId, h.size)
+            ctx.log.warning("chat-{} = {}", chatId, h.timeline.size)
             read(chatId + 1l, shards, ctx.self)
           case RNotFound(name) ⇒
             ctx.log.warning("NotFoundChatTime: " + name)

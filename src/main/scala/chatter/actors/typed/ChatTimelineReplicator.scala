@@ -92,9 +92,7 @@ object ChatTimelineReplicator {
         ctx.messageAdapter {
           case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
-            maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo)) { r ⇒
-              RChatTimelineReply(r.timeline, replyTo)
-            }
+            maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
           case akka.cluster.ddata.Replicator.GetFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
           case akka.cluster.ddata.Replicator.NotFound(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
@@ -137,7 +135,7 @@ object ChatTimelineReplicator {
           akkaReplicator ! Get(BucketKey, rc, readAdapter1, Some((chatKey, r.replyTo)))
           Behaviors.same
         case r: RChatTimelineReply ⇒
-          r.replyTo ! RSuccess(r.history)
+          r.replyTo ! RSuccess(r.tl)
           Behaviors.same
         case r: RGetFailureChatTimelineReply ⇒
           r.replyTo ! RFailure(r.error)

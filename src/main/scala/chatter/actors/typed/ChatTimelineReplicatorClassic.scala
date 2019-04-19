@@ -1,5 +1,6 @@
 package chatter.actors.typed
 
+
 import akka.actor.typed.{ ActorRef, Behavior, ExtensibleBehavior, PostStop, PreRestart, Signal, Terminated, TypedActorContext }
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.cluster.Cluster
@@ -13,6 +14,7 @@ import akka.cluster.ddata.ORMap
 import chatter.crdt.ChatTimeline
 import ChatTimelineReplicatorClassic._
 import akka.cluster.ddata.Replicator.{ ReadFrom, WriteTo }
+import akka.stream.{ ActorMaterializerSettings, StreamRefAttributes }
 
 object ChatTimelineReplicatorClassic {
 
@@ -73,8 +75,8 @@ object ChatTimelineReplicatorClassic {
     ctx.messageAdapter {
       case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
         val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
-        maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo)) { r ⇒
-          RChatTimelineReply(r.timeline, replyTo)
+        maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo)) { timeline ⇒
+          RChatTimelineReply(timeline, replyTo)
         }
       case akka.cluster.ddata.Replicator.GetFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
         RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
@@ -93,8 +95,8 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) 
 
   import scala.concurrent.duration._
 
-  val wc = /*WriteLocal*/ WriteTo(2, 3.seconds)
-  val rc = /*ReadLocal*/ ReadFrom(2, 3.seconds)
+  val wc = WriteLocal //WriteTo(2, 3.seconds)
+  val rc = ReadLocal //ReadFrom(2, 3.seconds)
 
   val cluster = Cluster(ctx.system.toUntyped)
   val address = cluster.selfUniqueAddress.address
@@ -105,6 +107,15 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) 
     akka.cluster.ddata.typed.scaladsl.Replicator.behavior(ReplicatorSettings(cnf)), shardName + "-" + ChatTimelineReplicator.name)
 
   ctx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", akkaReplicator.path, cnf.getString("durable.store-actor-class"))
+
+  implicit val mat = akka.stream.ActorMaterializer(
+    ActorMaterializerSettings.create(ctx.system.toUntyped)
+      .withInputBuffer(1 << 5, 1 << 5)
+      .withDispatcher(""))(ctx.system.toUntyped)
+
+  val atts = StreamRefAttributes
+    .subscriptionTimeout(5.seconds)
+    .and(akka.stream.Attributes.inputBuffer(1 << 5, 1 << 5))
 
   override def receive(
     ctx: TypedActorContext[ReplicatorCommand],
@@ -139,7 +150,24 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) 
         akkaReplicator ! Get(BucketKey, rc, readAdapter(ctx.asScala), Some((chatKey, r.replyTo)))
         Behaviors.same
       case r: RChatTimelineReply ⇒
-        r.replyTo ! RSuccess(r.history)
+
+        /*
+        //https://doc.akka.io/docs/akka/current/stream/stream-refs.html
+
+        import akka.pattern.pipe
+        import akka.stream.scaladsl.{Source, StreamRefs}
+        val tl = r.history
+        Source.fromIterator(() => tl.iterator).map(m => MessagePB(m.authId,
+          com.google.protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)),
+          m.when, m.tz).toByteArray)
+          .runWith(StreamRefs.sourceRef() /*.addAttributes(atts)*/)
+          .map(RemoteChatTimelineResponse(_))
+          .pipeTo(r.replyTo)
+        */
+
+        //https://doc.akka.io/docs/akka/current/typed/stream.html#actor-source
+        //ActorSink.actorRefWithAck[MessagePB](ref = r.replyTo, ...)
+        r.replyTo ! RSuccess(r.tl)
         Behaviors.same
       case r: RGetFailureChatTimelineReply ⇒
         r.replyTo ! RFailure(r.error)

@@ -73,10 +73,10 @@ case class ChatTimeline(
       this
     } else if (versions <> that.versions) {
       //println(s"${versions.elems.mkString(",")} vs ${that.versions.elems.mkString(",")}")
-      //val s = System.currentTimeMillis
+      val s = System.currentTimeMillis
       val r = merge0(timeline, that.timeline)
-      //val l = System.currentTimeMillis - s
-      //println(s"${versions.elems.map { case (n,v) => s"${n.port}:${v}"}.mkString(",")} vs ${that.versions.elems.map { case (n,v) => s"${n.port}:${v}"}.mkString(",")}")
+      val l = System.currentTimeMillis - s
+      println(s"${versions.elems.map { case (n, v) ⇒ s"${n.port}:${v}" }.mkString(",")} vs ${that.versions.elems.map { case (n, v) ⇒ s"${n.port}:${v}" }.mkString(",")} l:$l")
       ChatTimeline(r, versions merge that.versions)
     } else this //means ==
   }

@@ -8,9 +8,12 @@ import chatter.actors.typed.{ RChatTimelineReply, RGetFailureChatTimelineReply, 
 import akka.actor.typed.scaladsl.adapter._
 import akka.remote.WireFormats.ActorRefData
 import akka.remote.serialization.ProtobufSerializer
-import chatter.Message
+import chatter.{ Implicits, Message, Node }
 import chatter.actors.typed.Replicator.v1._
+import chatter.crdt.{ ChatTimeline, VersionVector }
 import com.google.protobuf
+
+import scala.collection.immutable.TreeMap
 
 class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends SerializerWithStringManifest {
 
@@ -44,11 +47,14 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
         RWriteTimeoutPB(m.chatName, com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
           .toByteArray
       case m: RChatTimelineReply ⇒
-        val hist = m.history.map(m ⇒ MessagePB(
+        val versions = m.tl.versions.elems./:(TreeMap.empty[String, Long]) { (acc, c) ⇒
+          acc + (s"${c._1.host}:${c._1.port}" -> c._2)
+        }
+        val proto = m.tl.timeline.map(m ⇒ MessagePB(
           m.authId,
           protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)), m.when, m.tz))
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
-        RChatTimelineReplyPB(hist, com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
+        RChatTimelineReplyPB(Some(ChatTimelinePB(proto, versions)), com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
           .toByteArray
       case m: RNotFoundChatTimelineReply ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
@@ -83,9 +89,15 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
       RWriteFailure(pb.chatName, pb.errorMsg, pbRef.toTyped[WriteResponses])
     } else if (manifest == classOf[RChatTimelineReply].getName) {
       val pb = RChatTimelineReplyPB.parseFrom(bytes)
-      val hist = pb.history.toVector.map(p ⇒ Message(p.authId, p.cnt.toStringUtf8, p.when, p.tz))
       val pbRef = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
-      RChatTimelineReply(hist, pbRef.toTyped[ReadReply])
+      val tlpb = pb.history.get
+      val tl = ChatTimeline(
+        tlpb.history.toVector.map(m ⇒ Message(m.authId, m.cnt.toStringUtf8, m.when, m.tz)),
+        VersionVector[Node](tlpb.versions./:(TreeMap.empty[Node, Long](Implicits.nodeOrd)) { (acc, m) ⇒
+          val segments = m._1.split(":")
+          acc + (Node(segments(0), segments(1).toInt) -> m._2)
+        })(Implicits.nodeOrd))
+      RChatTimelineReply(tl, pbRef.toTyped[ReadReply])
     } else if (manifest == classOf[RNotFoundChatTimelineReply].getName) {
       val pb = RNotFoundChatTimelineReplyPB.parseFrom(bytes)
       val pbRef = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))

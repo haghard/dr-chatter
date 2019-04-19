@@ -1,12 +1,13 @@
 package chatter.actors.typed
 
-import chatter.{ Message, Shard }
+import chatter.crdt.ChatTimeline
+import chatter.Shard
 
 sealed trait ReadReply
 
 case class KnownShards(shards: Vector[Shard[ReplicatorCommand]]) extends ReadReply
 
-case class RSuccess(history: Vector[Message]) extends ReadReply
+case class RSuccess(tl: ChatTimeline) extends ReadReply
 
 case class RFailure(chatName: String) extends ReadReply
 

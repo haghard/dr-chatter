@@ -55,7 +55,7 @@ message RWriteTimeoutPB {
 
 message RChatTimelineReplyPB {
     option (scalapb.message).extends = "ReplicatorCommandPB";
-    repeated MessagePB history = 1;
+    ChatTimelinePB history = 1;
     //ActorRef[ReadReply]
     bytes replyTo = 2;
 }
