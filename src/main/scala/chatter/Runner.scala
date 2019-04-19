@@ -1,7 +1,7 @@
 package chatter
 
 import akka.cluster.Cluster
-import chatter.actors.RocksDBBehavior
+import chatter.actors.RocksDBActor
 import com.typesafe.config.ConfigFactory
 import akka.routing.ConsistentHashingGroup
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
@@ -30,9 +30,10 @@ object Runner extends App {
   val systemName = "timeline"
 
   val shards = Vector("alpha", "betta", "gamma")
-  val ids = Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+  val ids = Seq.range(0l, 100l)
 
-  val writeDuration = 10.second * 1
+  val writeDuration = 60.second * 2
+
   val initTO = 2.seconds
 
   val commonConfig = ConfigFactory.parseString(
@@ -61,10 +62,14 @@ object Runner extends App {
   def spawnReplicator(shard: String, ctx: ActorContext[Unit]) = {
     val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
       ctx.spawn(ChatTimelineReplicator(shard), shard)
-    ctx.system.log.info("★ ★ ★  spawn local replicator for {}", ref.path)
+    ctx.system.log.info("★ ★ ★  spawn replicator for {}", ref.path)
     LocalShard(shard, ref)
   }
 
+  /*
+   * Creates a ref to an existing remote actors with the given path(name)
+   *
+   */
   def spawnProxyReplicator(remoteShardName: String, localShardsSize: Int, ctx: ActorContext[Unit]) = {
     val remoteProxyRouter = ctx.actorOf(
       ClusterRouterGroup(
@@ -75,7 +80,7 @@ object Runner extends App {
           allowLocalRoutees = false, //important
           useRoles          = remoteShardName)
       ).props(), s"proxy-$remoteShardName")
-    ctx.system.log.info("★ ★ ★  spawn remote replicator for {}", remoteProxyRouter.path)
+    ctx.system.log.info("★ ★ ★  spawn remote proxy for {}", remoteProxyRouter.path)
     RemoteShard(remoteShardName, remoteProxyRouter.toTyped[ReplicatorCommand])
   }
 
@@ -102,7 +107,7 @@ object Runner extends App {
         timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
-          context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
+          context.spawn(new RocksDBActor(context), RocksDBActor.name)
 
           val ss = spawnShards(Seq(shards(0), shards(1)), shards(2), context)
           val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
@@ -122,7 +127,7 @@ object Runner extends App {
         timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
-          context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
+          context.spawn(new RocksDBActor(context), RocksDBActor.name)
 
           val ss = spawnShards(Seq(shards(0), shards(2)), shards(1), context)
           val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
@@ -142,9 +147,9 @@ object Runner extends App {
         timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
-          context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
+          context.spawn(new RocksDBActor(context), RocksDBActor.name)
 
-          val ss = spawnShards(Seq(shards(1), shards(2)), shards(0), ctx)
+          val ss = spawnShards(Seq(shards(1), shards(2)), shards(0), context)
           val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
 
           context.spawn(ChatTimelineReader(w, writeDuration), "reader")

@@ -37,6 +37,12 @@ https://groups.google.com/forum/#!topic/akka-user/MO-4XhwhAN0
 
 
 #Things to address
-Should not put each entry as a top level entry in Replicator, you'd rather should not have them all in one ORMap.
-Split them over a reasonable number of ORMaps (hashing again). 
+We should not put each entry as a top level entry in Replicator, you'd rather should not have them all in one ORMap.
+Split them over a reasonable number of ORMaps (hashing again).
+
+When a data entry is changed the full state of that entry is replicated to other nodes, i.e. when you update a map, the whole map is replicated. 
+Therefore, instead of using one ORMap with 1000 elements it is more efficient to split that up in 10 top level ORMap entries with 100 elements each. 
+Top level entries are replicated individually, which has the trade-off that different entries may not be replicated at the same time and you may see 
+inconsistencies between related entries. Separate top level entries cannot be updated atomically together.
+ 
 How it is done in Cluster Sharding: https://github.com/akka/akka/blob/master/akka-cluster-sharding/src/main/scala/akka/cluster/sharding/Shard.scala#L594 

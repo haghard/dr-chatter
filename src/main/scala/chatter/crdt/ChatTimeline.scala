@@ -31,6 +31,7 @@ case class ChatTimeline(
         else divergedInd(a, b, limit, i + 1)
       else None
     }
+
     val index = divergedInd(tlA, tlB, math.min(tlA.length, tlB.length))
     if (index.isDefined) {
       val i = index.get

@@ -29,8 +29,8 @@ val `dr-chatter` = project
 
       "com.github.mpilquist" %% "simulacrum" % "0.12.0",
 
-      "org.rocksdb" % "rocksdbjni" % "5.17.2",
-      "com.h2database"  % "h2"          % "1.4.196",
+      "org.rocksdb" % "rocksdbjni" %  "5.17.2",
+      "com.h2database"  % "h2"      %  "1.4.196",
 
       "ch.qos.logback" % "logback-classic" % "1.2.3",
 

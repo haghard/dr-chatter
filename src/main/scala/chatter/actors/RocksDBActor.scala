@@ -5,14 +5,14 @@ import java.nio.file.{ Files, Paths }
 
 import akka.cluster.Cluster
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
-import chatter.actors.RocksDBBehavior.{ InitRocksDb, RocksDbReply }
+import chatter.actors.RocksDBActor.{ InitRocksDb, RocksDbReply }
 import akka.actor.typed.{ ActorRef, Behavior, ExtensibleBehavior, Signal, TypedActorContext }
 import org.rocksdb._
 
 import scala.util.Try
 import akka.actor.typed.scaladsl.adapter._
 
-object RocksDBBehavior {
+object RocksDBActor {
 
   case class InitRocksDb(replyTo: ActorRef[RocksDbReply])
 
@@ -22,10 +22,10 @@ object RocksDBBehavior {
 }
 
 //akka://timeline@127.0.0.1:2550/user/rock-db
-class RocksDBBehavior(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRocksDb] {
+class RocksDBActor(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRocksDb] {
   RocksDB.loadLibrary()
 
-  val dbDir = "./" + RocksDBBehavior.name
+  val dbDir = "./" + RocksDBActor.name
   Try(Files.createDirectory(Paths.get(s"./$dbDir")))
 
   val dir = new File(s"${dbDir}/rocks-${Cluster(ctx.asScala.system.toUntyped).selfAddress.port.get}")
@@ -46,7 +46,7 @@ class RocksDBBehavior(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRo
     }
 
   override def receiveSignal(
-    ctx: TypedActorContext[RocksDBBehavior.InitRocksDb],
-    msg: Signal): Behavior[RocksDBBehavior.InitRocksDb] =
+    ctx: TypedActorContext[RocksDBActor.InitRocksDb],
+    msg: Signal): Behavior[RocksDBActor.InitRocksDb] =
     Behaviors.same
 }

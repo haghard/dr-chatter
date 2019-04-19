@@ -5,9 +5,15 @@ import chatter.Message
 
 trait ReplicatorCommand
 
-case class WriteMessage(chatName: String, when: Long, tz: String, authId: Long, content: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand
+case class WriteMessage(
+    chatId: Long,
+    //chatName: String,
+    when: Long, tz: String, authId: Long, content: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand
 
-case class ReadChatTimeline(chatName: String, replyTo: ActorRef[ReadReply]) extends ReplicatorCommand
+case class ReadChatTimeline(
+    //chatName: String,
+    chatId: Long,
+    replyTo: ActorRef[ReadReply]) extends ReplicatorCommand
 
 //internal  replicator messages protocol
 case class RWriteSuccess(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorCommand

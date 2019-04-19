@@ -16,7 +16,7 @@ import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
 
 object ChatTimelineWriter {
 
-  def apply(shards: Vector[Shard[ReplicatorCommand]], ids: Seq[Int]): Behavior[WriteResponses] =
+  def apply(shards: Vector[Shard[ReplicatorCommand]], ids: Seq[Long]): Behavior[WriteResponses] =
     Behaviors.setup { ctx ⇒
 
       val writeTO = 20.millis
@@ -29,10 +29,11 @@ object ChatTimelineWriter {
           val chatId = ids(ThreadLocalRandom.current.nextInt(ids.size))
           val userId = ThreadLocalRandom.current.nextLong(0l, 10l)
 
-          val msg = WriteMessage(s"chat-$chatId", System.currentTimeMillis, ZoneId.systemDefault.getId, userId,
-                                                  rnd.nextString(1024 * 1), ctx.self)
+          //s"chat-$chatId"
+          val msg = WriteMessage(chatId, System.currentTimeMillis, ZoneId.systemDefault.getId, userId,
+                                 rnd.nextString(1024 * 2), ctx.self)
 
-          shards(chatId % shards.size) match {
+          shards(chatId.toInt % shards.size) match {
             case LocalShard(_, ref) ⇒
               ctx.scheduleOnce(writeTO, ref, msg)
             //ref ! msg

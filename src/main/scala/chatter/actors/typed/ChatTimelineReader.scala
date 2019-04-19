@@ -25,9 +25,10 @@ object ChatTimelineReader {
         ctx.log.info("read chat-{} -> ind:{}", chatId, ind)
         shards(ind) match {
           case LocalShard(_, ref) ⇒
-            ctx.scheduleOnce(readTO, ref, ReadChatTimeline(s"chat-$chatId", replyTo))
+            //s"chat-$chatId"
+            ctx.scheduleOnce(readTO, ref, ReadChatTimeline(chatId, replyTo))
           case RemoteShard(_, ref) ⇒
-            ctx.scheduleOnce(readTO, ref.toUntyped, ConsistentHashableEnvelope(ReadChatTimeline(s"chat-$chatId", replyTo), chatId))
+            ctx.scheduleOnce(readTO, ref.toUntyped, ConsistentHashableEnvelope(ReadChatTimeline(chatId, replyTo), chatId))
         }
         await(chatId, shards)
       }

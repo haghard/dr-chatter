@@ -13,7 +13,8 @@ option (scalapb.options) = {
 
 message WriteMessagePB {
     option (scalapb.message).extends = "ReplicatorCommandPB";
-    string chatName = 1;
+    int64  chatId = 1;
+    //string chatName = 1;
     int64 when = 2;
     string tz = 3;
     int64 authId = 4;
@@ -24,7 +25,8 @@ message WriteMessagePB {
 
 message ReadChatTimelinePB {
     option (scalapb.message).extends = "ReplicatorCommandPB";
-    string chatName = 1;
+    int64  chatId = 1;
+    //string chatName = 1;
     //ActorRef[ReadReply]
     bytes replyTo = 2;
 }
