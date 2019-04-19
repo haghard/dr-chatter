@@ -95,8 +95,8 @@ object Runner extends App {
       Each node holds 2/3 of all data
   */
   val node1 = akka.actor.typed.ActorSystem(
-    Behaviors.setup[Unit] { context ⇒
-      context.log.info("{} started and ready to join cluster", context.system.name)
+    Behaviors.setup[Unit] { ctx ⇒
+      ctx.log.info("{} started and ready to join cluster", ctx.system.name)
 
       Behaviors.withTimers[Unit] { timers ⇒
         timers.startSingleTimer("init", (), initTO)
@@ -116,16 +116,18 @@ object Runner extends App {
 
   val node2 = akka.actor.typed.ActorSystem(
     Behaviors.setup[Unit] { ctx ⇒
+      ctx.log.info("{} started and ready to join cluster", ctx.system.name)
+
       Behaviors.withTimers[Unit] { timers ⇒
         timers.startSingleTimer("init", (), initTO)
 
         Behaviors.receive { (context, _) ⇒
           context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
 
-          val ss = spawnShards(Seq(shards(0), shards(2)), shards(1), ctx)
-          val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
+          val ss = spawnShards(Seq(shards(0), shards(2)), shards(1), context)
+          val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
 
-          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
+          context.spawn(ChatTimelineReader(w, writeDuration), "reader")
 
           Behaviors.ignore
         }
@@ -134,6 +136,8 @@ object Runner extends App {
 
   val node3 = akka.actor.typed.ActorSystem(
     Behaviors.setup[Unit] { ctx ⇒
+      ctx.log.info("{} started and ready to join cluster", ctx.system.name)
+
       Behaviors.withTimers[Unit] { timers ⇒
         timers.startSingleTimer("init", (), initTO)
 
@@ -141,9 +145,9 @@ object Runner extends App {
           context.spawn(new RocksDBBehavior(context), RocksDBBehavior.name)
 
           val ss = spawnShards(Seq(shards(1), shards(2)), shards(0), ctx)
-          val w = ctx.spawn(ChatTimelineWriter(ss, ids), "writer")
+          val w = context.spawn(ChatTimelineWriter(ss, ids), "writer")
 
-          ctx.spawn(ChatTimelineReader(w, writeDuration), "reader")
+          context.spawn(ChatTimelineReader(w, writeDuration), "reader")
 
           Behaviors.ignore
         }
