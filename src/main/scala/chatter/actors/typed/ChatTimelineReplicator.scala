@@ -57,24 +57,24 @@ object ChatTimelineReplicator {
         """.stripMargin)
 
   def apply(shardName: String): Behavior[ReplicatorCommand] = {
-    Behaviors.setup { cxt ⇒
+    Behaviors.setup { ctx ⇒
       import scala.concurrent.duration._
       val wc = WriteLocal // WriteTo(2, 3.seconds)
       val rc = ReadLocal //ReadFrom(2, 3.seconds)
 
-      implicit val addr = DistributedData(cxt.system).selfUniqueAddress
+      implicit val addr = DistributedData(ctx.system).selfUniqueAddress
 
-      val cluster = Cluster(cxt.system.toUntyped)
+      val cluster = Cluster(ctx.system.toUntyped)
       val address = cluster.selfUniqueAddress.address
       val node = Node(address.host.get, address.port.get)
       val cnf = replicatorConfig(shardName, classOf[akka.cluster.ddata.RocksDurableStore].getName)
-      val akkaReplicator: ActorRef[Command] = cxt.spawn(
+      val akkaReplicator: ActorRef[Command] = ctx.spawn(
         akka.cluster.ddata.typed.scaladsl.Replicator.behavior(ReplicatorSettings(cnf)), ChatTimelineReplicator.name)
 
-      cxt.log.info("★ ★ ★ Start typed-replicator {} backed by {}", akkaReplicator.path, cnf.getString("durable.store-actor-class"))
+      ctx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", akkaReplicator.path, cnf.getString("durable.store-actor-class"))
 
       val writeAdapter1: ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
-        cxt.messageAdapter {
+        ctx.messageAdapter {
           case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
             RWriteSuccess(chatKey, replyTo)
           case akka.cluster.ddata.Replicator.ModifyFailure(k @ ChatBucket(_), _, cause, Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
@@ -84,12 +84,12 @@ object ChatTimelineReplicator {
           case akka.cluster.ddata.Replicator.StoreFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
             RWriteFailure(chatKey, "StoreFailure", replyTo)
           case other ⇒
-            cxt.log.error("Unsupported message form replicator: {}", other)
+            ctx.log.error("Unsupported message form replicator: {}", other)
             throw new Exception(s"Unsupported message form replicator: $other")
         }
 
       val readAdapter1: ActorRef[GetResponse[ORMap[String, ChatTimeline]]] =
-        cxt.messageAdapter {
+        ctx.messageAdapter {
           case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
             maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo)) { r ⇒
@@ -100,14 +100,14 @@ object ChatTimelineReplicator {
           case akka.cluster.ddata.Replicator.NotFound(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             RNotFoundChatTimelineReply(chatKey, replyTo)
           case other ⇒
-            cxt.log.error("Unsupported message form replicator: {}", other)
+            ctx.log.error("Unsupported message form replicator: {}", other)
             throw new Exception(s"Unsupported message form replicator: ${other}")
         }
 
       val write = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case msg: WriteMessage ⇒
           //val Key = ChatKey(msg.chatName)
-          val BucketKey = Partitioner.getBucketKey(msg.chatId)
+          val BucketKey = Partitioner.keyForBucket(msg.chatId)
           val chatKey = s"chat.${msg.chatId}"
 
           //ORMultiMap.empty[String, ChatTimeline]
@@ -132,7 +132,7 @@ object ChatTimelineReplicator {
 
       val read = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case r: ReadChatTimeline ⇒
-          val BucketKey = Partitioner.getBucketKey(r.chatId)
+          val BucketKey = Partitioner.keyForBucket(r.chatId)
           val chatKey = s"chat.${r.chatId}"
           akkaReplicator ! Get(BucketKey, rc, readAdapter1, Some((chatKey, r.replyTo)))
           Behaviors.same

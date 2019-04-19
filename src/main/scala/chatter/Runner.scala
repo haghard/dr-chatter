@@ -6,7 +6,7 @@ import com.typesafe.config.ConfigFactory
 import akka.routing.ConsistentHashingGroup
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
-import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter, ReplicatorCommand }
+import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter, ReplicatorCommand, ChatTimelineReplicatorClassic }
 
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
@@ -61,7 +61,8 @@ object Runner extends App {
 
   def spawnReplicator(shard: String, ctx: ActorContext[Unit]) = {
     val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
-      ctx.spawn(ChatTimelineReplicator(shard), shard)
+      ctx.spawn(new ChatTimelineReplicatorClassic(ctx, shard), shard)
+    //ctx.spawn(ChatTimelineReplicator(shard), shard)
     ctx.system.log.info("★ ★ ★  spawn replicator for {}", ref.path)
     LocalShard(shard, ref)
   }

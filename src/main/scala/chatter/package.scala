@@ -43,7 +43,7 @@ package object chatter {
     protected val maxNumber = 30l
     protected val buckets = Array(5l, 10l, 15l, 20l, 25, maxNumber)
 
-    def getBucketKey(key: Long): ReplicatedKey
+    def keyForBucket(key: Long): ReplicatedKey
   }
 
   /**
@@ -54,7 +54,8 @@ package object chatter {
    */
   trait ChatHashPartitioner extends Partitioner[ORMap[String, ChatTimeline]] {
     override type ReplicatedKey = ChatBucket
-    override def getBucketKey(key: Long) = {
+
+    override def keyForBucket(key: Long) = {
       import scala.collection.Searching._
       val index = math.abs(key % maxNumber)
       ChatBucket(buckets.search(index).insertionPoint)
