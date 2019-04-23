@@ -12,8 +12,8 @@ This can be achieved by implementing the akka.cluster.ddata.DeltaReplicatedData
 
 */
 case class ChatTimeline(
-    timeline: Vector[Message] = Vector.empty[Message],
-    versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
+  timeline: Vector[Message] = Vector.empty[Message],
+  versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
 ) extends akka.cluster.ddata.ReplicatedData {
 
   override type T = ChatTimeline
@@ -67,6 +67,8 @@ case class ChatTimeline(
 
   /*
     Requires a bounded semilattice (or idempotent commutative monoid).
+    Monotonic semi-lattice + merge = Least Upper Bound
+
     We rely on commutivity to ensure that machine A merging with machine B yields the same result as machine B merging with machine A.
     We need associativity to ensure we obtain the correct result when three or more machines are merging data.
     We need an identity element to initialise empty timeline.
@@ -78,7 +80,7 @@ case class ChatTimeline(
     if (versions < that.versions) {
       that
     } else
-      //
+      //this dominates that
     if (versions > that.versions) {
       this
     } else
@@ -92,4 +94,5 @@ case class ChatTimeline(
       ChatTimeline(r, versions merge that.versions)
     } else this //means ==
   }
+
 }
