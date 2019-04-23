@@ -11,6 +11,7 @@ sbt "runMain chatter.Runner"
 ```
 
 
+
 #Typed actors
 https://github.com/hseeberger/welcome-akka-typed/blob/master/src/main/scala/rocks/heikoseeberger/wat/typed/Transfer.scala
 https://doc.akka.io/docs/akka/current/typed/routers.html
@@ -28,7 +29,7 @@ https://www.cockroachlabs.com/blog/cockroachdb-on-rocksd/
 https://www.cockroachlabs.com/blog/sql-in-cockroachdb-mapping-table-data-to-key-value-storage/
 
 
-#Akka-cluster
+#Akka-cluster split brain
 https://scalac.io/split-brain-scenarios-with-akka-scala/
 
 

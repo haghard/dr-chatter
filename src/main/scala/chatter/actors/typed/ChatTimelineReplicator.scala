@@ -18,7 +18,7 @@ object ChatTimelineReplicator {
 
   val name = "replicator"
 
-  object Partitioner extends ChatHashPartitioner
+  object TopLevelKeysPartitioner extends ChatHashPartitioner
 
   def replicatorConfig(shardName: String, clazz: String): Config =
     ConfigFactory.parseString(
@@ -49,7 +49,7 @@ object ChatTimelineReplicator {
          |    type = PinnedDispatcher
          |    executor = thread-pool-executor
          |  }
-         |  
+         |
          |  use-dispatcher = akka.cluster.distributed-data.durable.pinned-store
          |  rocks.dir = "ddata"
          |  h2.dir = "ddata"
@@ -73,7 +73,7 @@ object ChatTimelineReplicator {
 
       ctx.log.info("★ ★ ★ Start typed-replicator {} backed by {}", akkaReplicator.path, cnf.getString("durable.store-actor-class"))
 
-      val writeAdapter1: ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
+      val writeAdapter: ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
         ctx.messageAdapter {
           case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
             RWriteSuccess(chatKey, replyTo)
@@ -88,7 +88,7 @@ object ChatTimelineReplicator {
             throw new Exception(s"Unsupported message form replicator: $other")
         }
 
-      val readAdapter1: ActorRef[GetResponse[ORMap[String, ChatTimeline]]] =
+      val readAdapter: ActorRef[GetResponse[ORMap[String, ChatTimeline]]] =
         ctx.messageAdapter {
           case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
@@ -105,11 +105,10 @@ object ChatTimelineReplicator {
       val write = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case msg: WriteMessage ⇒
           //val Key = ChatKey(msg.chatName)
-          val BucketKey = Partitioner.keyForBucket(msg.chatId)
+          val BucketKey = TopLevelKeysPartitioner.keyForBucket(msg.chatId)
           val chatKey = s"chat.${msg.chatId}"
 
-          //ORMultiMap.empty[String, ChatTimeline]
-          akkaReplicator ! Update(BucketKey, ORMap.empty[String, ChatTimeline], wc, writeAdapter1, Some((chatKey, msg.replyTo))) { bucket ⇒
+          akkaReplicator ! Update(BucketKey, ORMap.empty[String, ChatTimeline], wc, writeAdapter, Some((chatKey, msg.replyTo))) { bucket ⇒
             bucket.get(chatKey).fold(
               bucket :+ (chatKey -> ChatTimeline().+(Message(msg.authId, msg.content, msg.when, msg.tz), node))
             ) { es ⇒
@@ -130,9 +129,9 @@ object ChatTimelineReplicator {
 
       val read = Behaviors.receiveMessagePartial[ReplicatorCommand] {
         case r: ReadChatTimeline ⇒
-          val BucketKey = Partitioner.keyForBucket(r.chatId)
+          val BucketKey = TopLevelKeysPartitioner.keyForBucket(r.chatId)
           val chatKey = s"chat.${r.chatId}"
-          akkaReplicator ! Get(BucketKey, rc, readAdapter1, Some((chatKey, r.replyTo)))
+          akkaReplicator ! Get(BucketKey, rc, readAdapter, Some((chatKey, r.replyTo)))
           Behaviors.same
         case r: RChatTimelineReply ⇒
           r.replyTo ! RSuccess(r.tl)

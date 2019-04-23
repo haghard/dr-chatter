@@ -1,6 +1,6 @@
 import chatter.crdt.ChatTimeline
 import chatter.actors.typed.ReplicatorCommand
-import akka.cluster.ddata.{ Key, ORMap, ReplicatedData }
+import akka.cluster.ddata.{Key, ORMap, ReplicatedData}
 
 package object chatter {
 
@@ -20,6 +20,8 @@ package object chatter {
   case class ChatKey(chatName: String) extends Key[ChatTimeline](chatName)
 
   case class ChatBucket(bucketNbr: Long) extends Key[ORMap[String, ChatTimeline]](s"chat.bkt.${bucketNbr}")
+
+  //akka.cluster.ddata.ORMapKey.create[String, ChatTimeline]("buckets")
 
   object Implicits {
     val msgOrd: Ordering[Message] = (x: Message, y: Message) ⇒

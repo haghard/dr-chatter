@@ -15,7 +15,7 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
 
 object ChatTimelineWriter {
-  //(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRocksDb]
+
   def apply(shards: Vector[Shard[ReplicatorCommand]], ids: Seq[Long]): Behavior[WriteResponses] =
     Behaviors.setup { ctx ⇒
 

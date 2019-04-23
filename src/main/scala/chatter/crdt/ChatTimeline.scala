@@ -3,6 +3,14 @@ package crdt
 
 import scala.collection.Searching._
 
+/*
+
+Rather than having to replicate the entirety of the ChatTimeline every time,
+it would be much better to only synchronize those bits that have indeed be subjected to a change.
+
+This can be achieved by implementing the akka.cluster.ddata.DeltaReplicatedData
+
+*/
 case class ChatTimeline(
     timeline: Vector[Message] = Vector.empty[Message],
     versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
@@ -66,12 +74,16 @@ case class ChatTimeline(
     in a per-machine ChatTimeline, merging them will not lead to an incorrect result.
   */
   override def merge(that: ChatTimeline): ChatTimeline = {
-    //this.timeline union that.timeline
+    //that dominates this
     if (versions < that.versions) {
       that
-    } else if (versions > that.versions) {
+    } else
+      //
+    if (versions > that.versions) {
       this
-    } else if (versions <> that.versions) {
+    } else
+      //concurrent
+    if (versions <> that.versions) {
       //println(s"${versions.elems.mkString(",")} vs ${that.versions.elems.mkString(",")}")
       val s = System.currentTimeMillis
       val r = merge0(timeline, that.timeline)

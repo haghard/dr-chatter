@@ -1,8 +1,9 @@
 package chatter.serializer
 
-import java.nio.charset.StandardCharsets
+import java.nio.charset.StandardCharsets._
 
 import akka.actor.ExtendedActorSystem
+import akka.actor.typed.ActorRefResolver
 import akka.serialization.SerializerWithStringManifest
 import chatter.actors.typed.{ RChatTimelineReply, RGetFailureChatTimelineReply, RNotFoundChatTimelineReply, RWriteFailure, RWriteSuccess, RWriteTimeout, ReadChatTimeline, ReadReply, WriteMessage, WriteResponses }
 import akka.actor.typed.scaladsl.adapter._
@@ -21,10 +22,14 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
 
   override def manifest(obj: AnyRef): String = obj.getClass.getName
 
+  val aRefSerializer = ActorRefResolver(system.toTyped)
+
+  //https://doc.akka.io/docs/akka/2.5.22/typed/cluster.html#serialization
   override def toBinary(obj: AnyRef): Array[Byte] =
     obj match {
       case m: WriteMessage ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
+        //val pbRef = actorRefResolver.toSerializationFormat(m.replyTo).getBytes(UTF_8)
         val pb = WriteMessagePB(m.chatId, m.when, m.tz, m.authId, m.content,
                                 com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
         //println(s"toBinary: ${m.replyTo}")
@@ -52,7 +57,7 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
         }
         val proto = m.tl.timeline.map(m ⇒ MessagePB(
           m.authId,
-          protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)), m.when, m.tz))
+          protobuf.ByteString.copyFrom(m.cnt.getBytes(UTF_8)), m.when, m.tz))
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
         RChatTimelineReplyPB(Some(ChatTimelinePB(proto, versions)), com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
           .toByteArray
@@ -72,6 +77,7 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
     if (manifest == classOf[WriteMessage].getName) {
       val pb = WriteMessagePB.parseFrom(bytes)
       val ref = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
+      //val ref = actorRefResolver.resolveActorRef(pb.replyTo.toString(UTF_8))
       //println(s"fromBinary: ${ref}")
       WriteMessage(pb.chatId, pb.when, pb.tz, pb.authId, pb.content, ref)
     } else if (manifest == classOf[ReadChatTimeline].getName) {
