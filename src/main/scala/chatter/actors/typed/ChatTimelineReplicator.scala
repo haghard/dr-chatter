@@ -10,7 +10,7 @@ import akka.cluster.ddata.typed.scaladsl.{ DistributedData, ReplicatorSettings }
 import chatter.crdt.ChatTimeline
 import com.typesafe.config.{ Config, ConfigFactory }
 import akka.actor.typed.scaladsl.adapter._
-import akka.cluster.ddata.{ ORMap, ORMultiMap, SelfUniqueAddress }
+import akka.cluster.ddata.{ Key, ORMap, ORMapKey, SelfUniqueAddress }
 import akka.cluster.ddata.Replicator.{ ReadFrom, WriteTo }
 import akka.cluster.ddata.typed.scaladsl.Replicator._
 
@@ -18,7 +18,10 @@ object ChatTimelineReplicator {
 
   val name = "replicator"
 
-  object TopLevelKeysPartitioner extends ChatHashPartitioner
+  object TopLevelKeysPartitioner extends ChatTimelineHashPartitioner
+
+  /*def dataKey(entryKey: String): Key[ORMap[String, ChatTimeline]] =
+    ORMapKey.create[String, ChatTimeline]("chat.bkt." + math.abs(entryKey.hashCode) % 100)*/
 
   def replicatorConfig(shardName: String, clazz: String): Config =
     ConfigFactory.parseString(

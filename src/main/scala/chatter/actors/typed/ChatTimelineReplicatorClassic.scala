@@ -5,7 +5,7 @@ import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.cluster.Cluster
 import akka.cluster.ddata.typed.scaladsl.{ DistributedData, ReplicatorSettings }
 import akka.cluster.ddata.typed.scaladsl.Replicator.{ Command, Get, GetResponse, ReadLocal, Update, UpdateResponse, WriteLocal }
-import chatter.{ ChatBucket, ChatHashPartitioner, Message, Node }
+import chatter.{ ChatBucket, ChatTimelineHashPartitioner, Message, Node }
 import chatter.actors.typed.ChatTimelineReplicator.replicatorConfig
 import com.typesafe.config.{ Config, ConfigFactory }
 import akka.actor.typed.scaladsl.adapter._
@@ -87,7 +87,7 @@ object ChatTimelineReplicatorClassic {
 
 //Implementation similar to a classic Actor
 class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) extends ExtensibleBehavior[ReplicatorCommand]
-  with ChatHashPartitioner {
+  with ChatTimelineHashPartitioner {
   implicit val addr = DistributedData(ctx.system).selfUniqueAddress
 
   import scala.concurrent.duration._

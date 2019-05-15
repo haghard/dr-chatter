@@ -81,10 +81,7 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
               }
               log.info("***********************")
             }
-
-            //ChatTimeline
             //log.info("Load [{} - {}] size:{}", originalKey, envelope.data.asInstanceOf[ORMap[String, ChatTimeline]].size, bts.size)
-
             savedResult = savedResult + (originalKey -> envelope)
           }
           iter.next

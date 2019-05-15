@@ -1,6 +1,6 @@
 import chatter.crdt.ChatTimeline
 import chatter.actors.typed.ReplicatorCommand
-import akka.cluster.ddata.{Key, ORMap, ReplicatedData}
+import akka.cluster.ddata.{ Key, ORMap, ReplicatedData }
 
 package object chatter {
 
@@ -20,8 +20,6 @@ package object chatter {
   case class ChatKey(chatName: String) extends Key[ChatTimeline](chatName)
 
   case class ChatBucket(bucketNbr: Long) extends Key[ORMap[String, ChatTimeline]](s"chat.bkt.${bucketNbr}")
-
-  //akka.cluster.ddata.ORMapKey.create[String, ChatTimeline]("buckets")
 
   object Implicits {
     val msgOrd: Ordering[Message] = (x: Message, y: Message) ⇒
@@ -54,13 +52,15 @@ package object chatter {
    * and you may get inconsistencies between related entries (of cause if you have related entries).
    * Separated top level entries cannot be updated atomically together.
    */
-  trait ChatHashPartitioner extends Partitioner[ORMap[String, ChatTimeline]] {
+  trait ChatTimelineHashPartitioner extends Partitioner[ORMap[String, ChatTimeline]] {
     override type ReplicatedKey = ChatBucket
 
     override def keyForBucket(key: Long) = {
       import scala.collection.Searching._
       val index = math.abs(key % maxNumber)
-      ChatBucket(buckets.search(index).insertionPoint)
+      val i = buckets.search(index).insertionPoint
+      //val i = math.abs(key.hashCode) % 10
+      ChatBucket(i)
     }
   }
 }

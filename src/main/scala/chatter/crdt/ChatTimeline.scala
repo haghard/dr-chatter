@@ -12,8 +12,8 @@ This can be achieved by implementing the akka.cluster.ddata.DeltaReplicatedData
 
 */
 case class ChatTimeline(
-  timeline: Vector[Message] = Vector.empty[Message],
-  versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
+    timeline: Vector[Message] = Vector.empty[Message],
+    versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
 ) extends akka.cluster.ddata.ReplicatedData {
 
   override type T = ChatTimeline
@@ -79,12 +79,10 @@ case class ChatTimeline(
     //that dominates this
     if (versions < that.versions) {
       that
-    } else
-      //this dominates that
+    } else //this dominates that
     if (versions > that.versions) {
       this
-    } else
-      //concurrent
+    } else //concurrent
     if (versions <> that.versions) {
       //println(s"${versions.elems.mkString(",")} vs ${that.versions.elems.mkString(",")}")
       val s = System.currentTimeMillis

@@ -12,17 +12,6 @@ import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
 import akka.actor.typed.scaladsl.adapter._
 
-/*
-You can use Cluster Sharding and DData with roles. So, let's say that you go with 10 roles, 10,000 entities in each role. You would then start Replicators on the nodes with corresponding nodes. You would also start Sharding on the nodes with corresponding roles. On a node that doesn't have the a role you would start a sharding proxy for such role.
-
-When you want to send a message to an entity you first need to decide which role to use for that message. Can be simple hashCode modulo algorithm. Then you delegate the message to the corresponding Sharding region or proxy actor.
-
-You have defined the Props for the entities and there you pass in the Replicator corresponding to the role that the entity belongs to, i.e. the entity takes the right Replicator ActorRef as constructor parameter.
-
-If you don't need the strict guarantees of "only one entity" that Cluster Sharding provides, and prefer better availability in case of network partitions, you could use a consistent hashing group router instead of Cluster Sharding. You would have one router per role, and decide router similar as above. Then the entities (routees of the router) would have to subscribe to changes from DData to get notified of when a peer entity has changed something, since you can have more than one alive at the same time.
-
- */
-
 //runMain chatter.Runner
 //sbt "runMain chatter.Runner"
 object Runner extends App {
