@@ -55,7 +55,7 @@ object ChatTimelineReplicatorClassic {
          | }
        """.stripMargin)
 
-  def writeAdapter(ctx: ActorContext[ReplicatorCommand]): ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
+  def writeAdapter(ctx: ActorContext[ReplicatorProtocol]): ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
     ctx.messageAdapter {
       case akka.cluster.ddata.Replicator.UpdateSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
         RWriteSuccess(chatKey, replyTo)
@@ -70,11 +70,11 @@ object ChatTimelineReplicatorClassic {
         throw new Exception(s"Unsupported message form replicator: $other")
     }
 
-  def readAdapter(ctx: ActorContext[ReplicatorCommand]): ActorRef[GetResponse[ORMap[String, ChatTimeline]]] =
+  def readAdapter(ctx: ActorContext[ReplicatorProtocol]): ActorRef[GetResponse[ORMap[String, ChatTimeline]]] =
     ctx.messageAdapter {
       case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
         val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
-        maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
+        maybe.fold[ReplicatorProtocol](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
       case akka.cluster.ddata.Replicator.GetFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
         RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
       case akka.cluster.ddata.Replicator.NotFound(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
@@ -86,7 +86,7 @@ object ChatTimelineReplicatorClassic {
 }
 
 //Implementation similar to a classic Actor
-class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) extends ExtensibleBehavior[ReplicatorCommand]
+class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) extends ExtensibleBehavior[ReplicatorProtocol]
   with ChatTimelineHashPartitioner {
   implicit val addr = DistributedData(ctx.system).selfUniqueAddress
 
@@ -115,8 +115,8 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) 
     .and(akka.stream.Attributes.inputBuffer(1 << 5, 1 << 5))
 
   override def receive(
-    ctx: TypedActorContext[ReplicatorCommand],
-    msg: ReplicatorCommand): Behavior[ReplicatorCommand] =
+    ctx: TypedActorContext[ReplicatorProtocol],
+    msg: ReplicatorProtocol): Behavior[ReplicatorProtocol] =
     msg match {
       //********  writes *************/
       case msg: WriteMessage ⇒
@@ -175,8 +175,8 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String) 
     }
 
   override def receiveSignal(
-    ctx: TypedActorContext[ReplicatorCommand],
-    msg: Signal): Behavior[ReplicatorCommand] =
+    ctx: TypedActorContext[ReplicatorProtocol],
+    msg: Signal): Behavior[ReplicatorProtocol] =
     msg match {
       case PreRestart ⇒
         this

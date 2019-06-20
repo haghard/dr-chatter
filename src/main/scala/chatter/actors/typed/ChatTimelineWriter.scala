@@ -16,7 +16,7 @@ import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
 
 object ChatTimelineWriter {
 
-  def apply(shards: Vector[Shard[ReplicatorCommand]], ids: Seq[Long]): Behavior[WriteResponses] =
+  def apply(shards: Vector[Shard[ReplicatorProtocol]], ids: Seq[Long]): Behavior[WriteResponses] =
     Behaviors.setup { ctx ⇒
 
       val writeTO = 20.millis
@@ -25,7 +25,7 @@ object ChatTimelineWriter {
       Behaviors.withTimers[WriteResponses] { timers ⇒
         timers.startSingleTimer(ctx.self.path.toString, StartWriting, 2.second)
 
-        def write(n: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[WriteResponses] = {
+        def write(n: Long, shards: Vector[Shard[ReplicatorProtocol]]): Behavior[WriteResponses] = {
           val chatId = ids(ThreadLocalRandom.current.nextInt(ids.size))
           val userId = ThreadLocalRandom.current.nextLong(0l, 10l)
 
@@ -44,7 +44,7 @@ object ChatTimelineWriter {
           await(n, shards)
         }
 
-        def await(chatId: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[WriteResponses] =
+        def await(chatId: Long, shards: Vector[Shard[ReplicatorProtocol]]): Behavior[WriteResponses] =
           Behaviors.receiveMessage[WriteResponses] {
             case AskForShards(replyTo) ⇒
               replyTo ! KnownShards(shards)

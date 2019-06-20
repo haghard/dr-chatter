@@ -1,5 +1,5 @@
 import chatter.crdt.ChatTimeline
-import chatter.actors.typed.ReplicatorCommand
+import chatter.actors.typed.ReplicatorProtocol
 import akka.cluster.ddata.{ Key, ORMap, ReplicatedData }
 
 package object chatter {
@@ -9,9 +9,9 @@ package object chatter {
     def ref: akka.actor.typed.ActorRef[T]
   }
 
-  case class LocalShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorCommand]) extends Shard[ReplicatorCommand]
+  case class LocalShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol]) extends Shard[ReplicatorProtocol]
 
-  case class RemoteShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorCommand]) extends Shard[ReplicatorCommand]
+  case class RemoteShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol]) extends Shard[ReplicatorProtocol]
 
   case class Node(host: String, port: Int)
 

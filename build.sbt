@@ -3,7 +3,7 @@ import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbt.CrossVersion
 import scalariform.formatter.preferences._
 
-val akkaVersion = "2.5.22"
+val akkaVersion = "2.5.23"
 
 val `dr-chatter` = project
   .in(file("."))
@@ -25,20 +25,20 @@ val `dr-chatter` = project
       "com.typesafe.akka" %% "akka-stream-typed" % akkaVersion,
       "com.github.TanUkkii007" %% "akka-cluster-custom-downing" % "0.0.12",
 
-      "com.typesafe.akka" %% "akka-http" % "10.1.7",
+      "com.typesafe.akka" %% "akka-http" % "10.1.8",
       "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
 
       "com.github.mpilquist" %% "simulacrum" % "0.12.0",
 
       "org.rocksdb" % "rocksdbjni" %  "5.17.2",
-      "com.h2database"  % "h2"      %  "1.4.196",
+      "com.h2database"  % "h2"      %  "1.4.199",
 
       "ch.qos.logback" % "logback-classic" % "1.2.3",
 
       "com.rbmhtechnology" %% "eventuate-crdt" % "0.10",
 
       //"org.hdrhistogram"  % "HdrHistogram" %  "2.1.10",
-      ("com.lihaoyi" % "ammonite" % "1.6.0" % "test").cross(CrossVersion.full),
+      ("com.lihaoyi" % "ammonite" % "1.6.8" % "test").cross(CrossVersion.full),
 
       "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion),
 

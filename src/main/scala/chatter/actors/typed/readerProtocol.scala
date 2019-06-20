@@ -5,7 +5,7 @@ import chatter.Shard
 
 sealed trait ReadReply
 
-case class KnownShards(shards: Vector[Shard[ReplicatorCommand]]) extends ReadReply
+case class KnownShards(shards: Vector[Shard[ReplicatorProtocol]]) extends ReadReply
 
 case class RSuccess(tl: ChatTimeline) extends ReadReply
 

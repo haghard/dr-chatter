@@ -59,7 +59,7 @@ object ChatTimelineReplicator {
          | }
         """.stripMargin)
 
-  def apply(shardName: String): Behavior[ReplicatorCommand] = {
+  def apply(shardName: String): Behavior[ReplicatorProtocol] = {
     Behaviors.setup { ctx ⇒
       import scala.concurrent.duration._
       val wc = WriteLocal // WriteTo(2, 3.seconds)
@@ -95,7 +95,7 @@ object ChatTimelineReplicator {
         ctx.messageAdapter {
           case r @ akka.cluster.ddata.Replicator.GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             val maybe = r.get[ORMap[String, ChatTimeline]](k).get(chatKey)
-            maybe.fold[ReplicatorCommand](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
+            maybe.fold[ReplicatorProtocol](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
           case akka.cluster.ddata.Replicator.GetFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
             RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
           case akka.cluster.ddata.Replicator.NotFound(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
@@ -105,7 +105,8 @@ object ChatTimelineReplicator {
             throw new Exception(s"Unsupported message form replicator: ${other}")
         }
 
-      val write = Behaviors.receiveMessagePartial[ReplicatorCommand] {
+      Behaviors.receiveMessage[ReplicatorProtocol] {
+        //write
         case msg: WriteMessage ⇒
           //val Key = ChatKey(msg.chatName)
           val BucketKey = TopLevelKeysPartitioner.keyForBucket(msg.chatId)
@@ -128,9 +129,8 @@ object ChatTimelineReplicator {
         case w: RWriteTimeout ⇒
           w.replyTo ! WTimeout(w.chatName)
           Behaviors.same
-      }
 
-      val read = Behaviors.receiveMessagePartial[ReplicatorCommand] {
+        //read
         case r: ReadChatTimeline ⇒
           val BucketKey = TopLevelKeysPartitioner.keyForBucket(r.chatId)
           val chatKey = s"chat.${r.chatId}"
@@ -146,8 +146,6 @@ object ChatTimelineReplicator {
           r.replyTo ! RNotFound(r.chatName)
           Behaviors.same
       }
-
-      write orElse read
     }
   }
 }

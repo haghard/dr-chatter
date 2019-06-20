@@ -6,7 +6,7 @@ import com.typesafe.config.ConfigFactory
 import akka.routing.ConsistentHashingGroup
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.cluster.routing.{ ClusterRouterGroup, ClusterRouterGroupSettings }
-import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter, ReplicatorCommand, ChatTimelineReplicatorClassic }
+import chatter.actors.typed.{ ChatTimelineReader, ChatTimelineReplicator, ChatTimelineWriter, ReplicatorProtocol, ChatTimelineReplicatorClassic }
 
 import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
@@ -49,7 +49,7 @@ object Runner extends App {
     ConfigFactory.parseString(s"akka.cluster.roles = [${shards(ind0)}, ${shards(ind1)}]")
 
   def spawnReplicator(shard: String, ctx: ActorContext[Unit]) = {
-    val ref: akka.actor.typed.ActorRef[ReplicatorCommand] =
+    val ref: akka.actor.typed.ActorRef[ReplicatorProtocol] =
       ctx.spawn(new ChatTimelineReplicatorClassic(ctx, shard), shard)
     //ctx.spawn(ChatTimelineReplicator(shard), shard)
     ctx.system.log.info("★ ★ ★  spawn replicator for {}", ref.path)
@@ -71,12 +71,12 @@ object Runner extends App {
           useRoles          = remoteShardName)
       ).props(), s"proxy-$remoteShardName")
     ctx.system.log.info("★ ★ ★  spawn remote proxy for {}", remoteProxyRouter.path)
-    RemoteShard(remoteShardName, remoteProxyRouter.toTyped[ReplicatorCommand])
+    RemoteShard(remoteShardName, remoteProxyRouter.toTyped[ReplicatorProtocol])
   }
 
-  def spawnShards(local: Seq[String], remote: String, ctx: ActorContext[Unit]): Vector[Shard[ReplicatorCommand]] = {
-    val r: Vector[Shard[ReplicatorCommand]] = {
-      val zero = new TreeSet[Shard[ReplicatorCommand]]()((a: Shard[ReplicatorCommand], b: Shard[ReplicatorCommand]) ⇒ a.name.compareTo(b.name))
+  def spawnShards(local: Seq[String], remote: String, ctx: ActorContext[Unit]): Vector[Shard[ReplicatorProtocol]] = {
+    val r: Vector[Shard[ReplicatorProtocol]] = {
+      val zero = new TreeSet[Shard[ReplicatorProtocol]]()((a: Shard[ReplicatorProtocol], b: Shard[ReplicatorProtocol]) ⇒ a.name.compareTo(b.name))
       local./:(zero)(_ + spawnReplicator(_, ctx)) + spawnProxyReplicator(remote, local.size, ctx)
     }.toVector
     r

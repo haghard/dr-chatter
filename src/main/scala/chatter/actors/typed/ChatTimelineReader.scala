@@ -20,7 +20,7 @@ object ChatTimelineReader {
       //ctx.ask(AskForShards(ctx.self))
       ctx.scheduleOnce(delay, writer, AskForShards(ctx.self))
 
-      def read(chatId: Long, shards: Vector[Shard[ReplicatorCommand]], replyTo: ActorRef[ReadReply]): Behavior[ReadReply] = {
+      def read(chatId: Long, shards: Vector[Shard[ReplicatorProtocol]], replyTo: ActorRef[ReadReply]): Behavior[ReadReply] = {
         val ind = (chatId % shards.size).toInt
         ctx.log.info("read chat-{} -> ind:{}", chatId, ind)
         shards(ind) match {
@@ -33,7 +33,7 @@ object ChatTimelineReader {
         await(chatId, shards)
       }
 
-      def await(chatId: Long, shards: Vector[Shard[ReplicatorCommand]]): Behavior[ReadReply] =
+      def await(chatId: Long, shards: Vector[Shard[ReplicatorProtocol]]): Behavior[ReadReply] =
         Behaviors.receiveMessage[ReadReply] {
           case RSuccess(h) ⇒
             ctx.log.warning("chat-{} = {}", chatId, h.timeline.size)
