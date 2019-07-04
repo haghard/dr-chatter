@@ -24,14 +24,15 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
 
   val aRefSerializer = ActorRefResolver(system.toTyped)
 
+  //https://manuel.bernhardt.io/2018/07/20/akka-anti-patterns-java-serialization/
   //https://doc.akka.io/docs/akka/2.5.22/typed/cluster.html#serialization
   override def toBinary(obj: AnyRef): Array[Byte] =
     obj match {
       case m: WriteMessage ⇒
-        val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
-        //val pbRef = actorRefResolver.toSerializationFormat(m.replyTo).getBytes(UTF_8)
+        val replyToRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
+        //val pbRef = aRefSerializer.toSerializationFormat(m.replyTo).getBytes(UTF_8)
         val pb = WriteMessagePB(m.chatId, m.when, m.tz, m.authId, m.content,
-                                com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray))
+                                com.google.protobuf.ByteString.copyFrom(replyToRef.toByteArray))
         //println(s"toBinary: ${m.replyTo}")
         pb.toByteArray
       case m: ReadChatTimeline ⇒
@@ -77,7 +78,7 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
     if (manifest == classOf[WriteMessage].getName) {
       val pb = WriteMessagePB.parseFrom(bytes)
       val ref = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
-      //val ref = actorRefResolver.resolveActorRef(pb.replyTo.toString(UTF_8))
+      //val ref = aRefSerializer.resolveActorRef(pb.replyTo.toString(UTF_8))
       //println(s"fromBinary: ${ref}")
       WriteMessage(pb.chatId, pb.when, pb.tz, pb.authId, pb.content, ref)
     } else if (manifest == classOf[ReadChatTimeline].getName) {

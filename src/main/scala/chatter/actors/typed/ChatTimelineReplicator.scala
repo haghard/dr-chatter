@@ -23,6 +23,7 @@ object ChatTimelineReplicator {
   /*def dataKey(entryKey: String): Key[ORMap[String, ChatTimeline]] =
     ORMapKey.create[String, ChatTimeline]("chat.bkt." + math.abs(entryKey.hashCode) % 100)*/
 
+  // https://doc.akka.io/docs/akka/current/typed/distributed-data.html#using-the-replicator
   def replicatorConfig(shardName: String, clazz: String): Config =
     ConfigFactory.parseString(
       s"""

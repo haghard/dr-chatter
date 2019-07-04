@@ -89,7 +89,7 @@ object Runner extends App {
       RF for this setup is 2
       Each node holds 2/3 of all data
   */
-  val node1 = akka.actor.typed.ActorSystem(
+  val node1 = akka.actor.typed.ActorSystem[Nothing](
     Behaviors.setup[Unit] { ctx ⇒
       ctx.log.info("{} started and ready to join cluster", ctx.system.name)
 
@@ -107,9 +107,9 @@ object Runner extends App {
           Behaviors.ignore
         }
       }
-    }, systemName, portConfig(2550).withFallback(rolesConfig(0, 1)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
+    }.narrow, systemName, portConfig(2550).withFallback(rolesConfig(0, 1)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
 
-  val node2 = akka.actor.typed.ActorSystem(
+  val node2 = akka.actor.typed.ActorSystem[Nothing](
     Behaviors.setup[Unit] { ctx ⇒
       ctx.log.info("{} started and ready to join cluster", ctx.system.name)
 
@@ -127,16 +127,16 @@ object Runner extends App {
           Behaviors.ignore
         }
       }
-    }, systemName, portConfig(2551).withFallback(rolesConfig(0, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
+    }.narrow, systemName, portConfig(2551).withFallback(rolesConfig(0, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
 
-  val node3 = akka.actor.typed.ActorSystem(
+  val node3 = akka.actor.typed.ActorSystem[Nothing](
     Behaviors.setup[Unit] { ctx ⇒
       ctx.log.info("{} started and ready to join cluster", ctx.system.name)
 
       Behaviors.withTimers[Unit] { timers ⇒
         timers.startSingleTimer("init", (), initTO)
 
-        Behaviors.receive { (context, _) ⇒
+        Behaviors.receive[Unit] { (context, _) ⇒
           context.spawn(new RocksDBActor(context), RocksDBActor.name)
 
           val ss = spawnShards(Seq(shards(1), shards(2)), shards(0), context)
@@ -147,7 +147,7 @@ object Runner extends App {
           Behaviors.ignore
         }
       }
-    }, systemName, portConfig(2552).withFallback(rolesConfig(1, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
+    }.narrow, systemName, portConfig(2552).withFallback(rolesConfig(1, 2)).withFallback(commonConfig).withFallback(ConfigFactory.load()))
 
   val node1Cluster = Cluster(node1.toUntyped)
   val node2Cluster = Cluster(node2.toUntyped)
