@@ -47,7 +47,6 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
         pb.toByteArray
       case m: ReadChatTimeline ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
-        //println(s"toBinary: ${m.replyTo}")
         ReadChatTimelinePB(m.chatId, com.google.protobuf.ByteString.copyFrom(pbRef.toByteArray)).toByteArray
       case m: RWriteSuccess ⇒
         val pbRef = ProtobufSerializer.serializeActorRef(m.replyTo.toUntyped)
@@ -90,7 +89,6 @@ class ChatTimelineReplicatorSerializer(val system: ExtendedActorSystem) extends 
     } else if (manifest == classOf[ReadChatTimeline].getName) {
       val pb    = ReadChatTimelinePB.parseFrom(bytes)
       val pbRef = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(pb.replyTo.toByteArray))
-      //println(s"fromBinary: ${pbRef}")
       ReadChatTimeline(pb.chatId, pbRef.toTyped[ReadReply])
     } else if (manifest == classOf[RWriteSuccess].getName) {
       val pb    = RWriteSuccessPB.parseFrom(bytes)

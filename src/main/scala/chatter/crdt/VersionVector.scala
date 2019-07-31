@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 import scala.collection.immutable.SortedMap
 
 /*
-    Version vectors have 3 types of relationships:
+ * Version vectors have 3 types of relationships:
  * A >= B - A descends B
  * A > B  - A dominates B example [{a:2}, {b:3}] dominates [{a:1}, {b:3}]
  * Concurrent A <> B  [{a:1}, {b:0}] <> [{a:0}, {b:1}]
@@ -79,7 +79,7 @@ trait VersionVectorLike[T] {
   protected def size: Int
 }
 
-// Taken from "Merlijn Boogerd" %%  "computational-crdts" % "1.0"
+//The original idea was taken from "Merlijn Boogerd" %%  "computational-crdts" % "1.0"
 case class VersionVector[T: scala.Ordering](elems: SortedMap[T, Long]) extends VersionVectorLike[T] {
 
   import VersionVector._
@@ -181,9 +181,6 @@ case class VersionVector[T: scala.Ordering](elems: SortedMap[T, Long]) extends V
     else compare(this.elems.view.toSeq, that.elems.view.toSeq, Same)
   }
 
-  /**
-    * Computes the union of the nodes and maintains the highest clock value found for each
-    */
   override def merge(that: VersionVector[T]): VersionVector[T] = {
 
     def go(s1: SortedMap[T, Long], s2: SortedMap[T, Long], acc: SortedMap[T, Long]): SortedMap[T, Long] =
@@ -212,10 +209,7 @@ case class VersionVector[T: scala.Ordering](elems: SortedMap[T, Long]) extends V
     VersionVector(newEntries)
   }
 
-  /**
-    * Returns the number of nodes registered in this version vector
-    */
-  override protected lazy val size: Int = elems.size
+  override protected def size: Int = elems.size
 
   private def nodeClock(node: T): Long = elems.getOrElse(node, 0)
 }
