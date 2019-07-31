@@ -4,13 +4,10 @@ package crdt
 import scala.collection.Searching._
 
 /*
-
-Rather than having to replicate the entirety of the ChatTimeline every time,
+TODO: Rather than having to replicate the entirety of the ChatTimeline every time,
 it would be much better to only synchronize those bits that have indeed be subjected to a change.
-
 This can be achieved by implementing the akka.cluster.ddata.DeltaReplicatedData
-
- */
+*/
 case class ChatTimeline(
   timeline: Vector[Message] = Vector.empty[Message],
   versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
@@ -30,7 +27,7 @@ case class ChatTimeline(
     }
   }
 
-  //sort 2 sorted arrays saving messages with the same ts, never drop messages
+  //Sort 2 sorted arrays saving messages with the same ts, never drop messages
   private def merge0(tlA: Vector[Message], tlB: Vector[Message]): Vector[Message] = {
     @scala.annotation.tailrec
     def divergedInd(a: Vector[Message], b: Vector[Message], limit: Int, i: Int = 0): Option[Int] =
@@ -83,14 +80,12 @@ case class ChatTimeline(
       this
     } else //concurrent
     if (versions <> that.versions) {
-      //println(s"${versions.elems.mkString(",")} vs ${that.versions.elems.mkString(",")}")
-      val s = System.currentTimeMillis
+      /*val s = System.currentTimeMillis
       val r = merge0(timeline, that.timeline)
       val l = System.currentTimeMillis - s
-      println(s"${versions.elems.map { case (n, v) ⇒ s"${n.port}:${v}" }.mkString(",")} vs ${that.versions.elems
-        .map { case (n, v)                         ⇒ s"${n.port}:${v}" }
-        .mkString(",")} l:$l")
+      println(s"${versions.elems.map { case (n, v) ⇒ s"${n.port}:$v" }.mkString(",")} vs ${that.versions.elems
+        .map { case (n, v)                         ⇒ s"${n.port}:$v" }
+        .mkString(",")} latency:$l")*/
       ChatTimeline(r, versions merge that.versions)
     } else this //means ==
-
 }
