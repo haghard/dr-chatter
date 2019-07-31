@@ -26,9 +26,9 @@ sbt "runMain chatter.Runner"
 
 
 
-##Links
+## Links
 
-###Typed actors
+### Typed actors
 https://github.com/hseeberger/welcome-akka-typed/blob/master/src/main/scala/rocks/heikoseeberger/wat/typed/Transfer.scala
 https://doc.akka.io/docs/akka/current/typed/routers.html
 https://doc.akka.io/docs/akka/current/typed/distributed-data.html
@@ -36,7 +36,7 @@ https://github.com/johanandren/akka-typed-samples.git
 https://github.com/hseeberger/whirlwind-tour-akka.git
 
 
-###RocksDB
+### RocksDB
 https://github.com/facebook/rocksdb/wiki/RocksJava-Basics
 https://github.com/facebook/rocksdb/blob/master/java/samples/src/main/java/RocksDBColumnFamilySample.java
 https://github.com/facebook/rocksdb/blob/master/java/samples/src/main/java/RocksDBSample.java
