@@ -1,4 +1,4 @@
-## Eventually consistent, sharded, replicated chat timeline with leveraging akka-ddata and akka-cluster (POC)
+### Eventually consistent, sharded, replicated chat timeline with leveraging akka-ddata (POC)
 
 ChatTimeline CRDT is backed by RocksDB or H2.
 
@@ -16,7 +16,7 @@ Top level entries are replicated individually, which has the trade-off that diff
 inconsistencies between related entries. Separate top level entries cannot be updated atomically together.
 
 
-#How to run
+# How to run
 
 ```bash
 
