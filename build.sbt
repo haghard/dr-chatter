@@ -1,7 +1,6 @@
 import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbt.CrossVersion
-import scalariform.formatter.preferences._
 
 val akkaVersion = "2.5.23"
 
@@ -25,7 +24,7 @@ val `dr-chatter` = project
       "com.typesafe.akka" %% "akka-stream-typed" % akkaVersion,
       "com.github.TanUkkii007" %% "akka-cluster-custom-downing" % "0.0.12",
 
-      "com.typesafe.akka" %% "akka-http" % "10.1.8",
+      "com.typesafe.akka" %% "akka-http" % "10.1.9",
       "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
 
       "com.github.mpilquist" %% "simulacrum" % "0.12.0",
@@ -38,28 +37,23 @@ val `dr-chatter` = project
       "com.rbmhtechnology" %% "eventuate-crdt" % "0.10",
 
       //"org.hdrhistogram"  % "HdrHistogram" %  "2.1.10",
-      ("com.lihaoyi" % "ammonite" % "1.6.8" % "test").cross(CrossVersion.full),
+      ("com.lihaoyi" % "ammonite" % "1.6.9" % "test").cross(CrossVersion.full),
 
       "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion),
 
-    //fork in run := true,
+    //
+    fork in run := true,
 
     // disable parallel tests
     parallelExecution in Test := false,
 
     javaOptions ++= Seq("-Xmx4G", "-XX:MaxMetaspaceSize=3G", "-XX:+UseG1GC")
 
-  ) configs (MultiJvm)
+  ) configs MultiJvm
 
 //https://tpolecat.github.io/2017/04/25/scalac-flags.html
 
-
-scalariformPreferences := scalariformPreferences.value
-  .setPreference(AlignArguments, true)
-  .setPreference(AlignSingleLineCaseStatements, true)
-  .setPreference(DoubleIndentConstructorArguments, true)
-  .setPreference(DanglingCloseParenthesis, Preserve)
-  .setPreference(RewriteArrowSymbols, true)
+scalafmtOnCompile := true
 
 //test:run test:console
 sourceGenerators in Test += Def.task {
@@ -74,7 +68,6 @@ PB.targets in Compile := Seq(
   scalapb.gen() -> (sourceManaged in Compile).value
 )
 
-// (optional) If you need scalapb/scalapb.proto or anything from google/protobuf/*.proto
 libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
 
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)

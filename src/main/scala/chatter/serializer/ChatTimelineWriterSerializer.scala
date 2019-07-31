@@ -6,7 +6,7 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.remote.WireFormats.ActorRefData
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
-import chatter.actors.typed.{ AskForShards, ReadReply, WFailure, WSuccess, WTimeout }
+import chatter.actors.typed.{AskForShards, ReadReply, WFailure, WSuccess, WTimeout}
 import chatter.actors.typed.Replicator.v1._
 
 class ChatTimelineWriterSerializer(val system: ExtendedActorSystem) extends SerializerWithStringManifest {
@@ -29,10 +29,12 @@ class ChatTimelineWriterSerializer(val system: ExtendedActorSystem) extends Seri
       case WTimeout(name) ⇒
         WTimeoutPB(name).toByteArray
       case _ ⇒
-        throw new IllegalStateException(s"Serialization for $obj not supported. Check toBinary in ${this.getClass.getName}.")
+        throw new IllegalStateException(
+          s"Serialization for $obj not supported. Check toBinary in ${this.getClass.getName}."
+        )
     }
 
-  override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef = {
+  override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef =
     if (manifest == classOf[AskForShards].getName) {
       val ref = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(bytes)).toTyped[ReadReply]
       //println(s"fromBinary: ${ref.path}")
@@ -44,7 +46,8 @@ class ChatTimelineWriterSerializer(val system: ExtendedActorSystem) extends Seri
       WFailure(pb.chatName, pb.errorMsg)
     } else if (manifest == classOf[WTimeout].getName) {
       WTimeout(WTimeoutPB.parseFrom(bytes).chatName)
-    } else throw new IllegalStateException(
-      s"Deserialization for $manifest not supported. Check fromBinary method in ${this.getClass.getName} class.")
-  }
+    } else
+      throw new IllegalStateException(
+        s"Deserialization for $manifest not supported. Check fromBinary method in ${this.getClass.getName} class."
+      )
 }

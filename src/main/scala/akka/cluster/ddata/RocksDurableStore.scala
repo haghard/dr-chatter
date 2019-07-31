@@ -3,9 +3,9 @@ package akka.cluster.ddata
 import java.util.concurrent.TimeUnit
 
 import akka.cluster.ddata.DurableStore._
-import akka.actor.{ Actor, ActorLogging, RootActorPath, Stash }
+import akka.actor.{Actor, ActorLogging, RootActorPath, Stash}
 import akka.cluster.Cluster
-import akka.serialization.{ SerializationExtension, SerializerWithStringManifest }
+import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import akka.util.ByteString
 import com.typesafe.config.Config
 import org.rocksdb.RocksDB
@@ -18,10 +18,10 @@ import scala.util.control.NonFatal
 class RocksDurableStore(config: Config) extends Actor with ActorLogging with Stash {
   RocksDB.loadLibrary()
 
-  val SEPARATOR = '$'
+  val SEPARATOR     = '$'
   val serialization = SerializationExtension(context.system)
-  val serializer = serialization.serializerFor(classOf[DurableDataEnvelope]).asInstanceOf[SerializerWithStringManifest]
-  val manifest = serializer.manifest(new DurableDataEnvelope(Replicator.Internal.DeletedData))
+  val serializer    = serialization.serializerFor(classOf[DurableDataEnvelope]).asInstanceOf[SerializerWithStringManifest]
+  val manifest      = serializer.manifest(new DurableDataEnvelope(Replicator.Internal.DeletedData))
 
   val port = Cluster(context.system).selfAddress.port.get
 
@@ -32,7 +32,7 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
   val segments = self.path.elements.toSeq
 
   val replicaName = segments(1)
-  val flushOps = new FlushOptions().setWaitForFlush(true)
+  val flushOps    = new FlushOptions().setWaitForFlush(true)
 
   def awaitDB: Receive = {
     import akka.actor.typed.scaladsl.adapter._
@@ -53,26 +53,28 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
 
   def load(db: RocksDB): Receive = {
     case LoadAll ⇒
-      val ts = System.nanoTime
-      var savedResult = Map.empty[String, DurableDataEnvelope]
+      val ts                  = System.nanoTime
+      var savedResult         = Map.empty[String, DurableDataEnvelope]
       var iter: RocksIterator = null
       try {
         iter = db.newIterator
         iter.seekToFirst
         while (iter.isValid) {
           val keyWithReplica = new String(iter.key, ByteString.UTF_8)
-          val bts = iter.value
-          val envelope = serializer.fromBinary(bts, manifest).asInstanceOf[DurableDataEnvelope]
+          val bts            = iter.value
+          val envelope       = serializer.fromBinary(bts, manifest).asInstanceOf[DurableDataEnvelope]
 
           //chat-1.betta-repl
           if (keyWithReplica.endsWith(replicaName)) {
-            val segments = keyWithReplica.split(SEPARATOR)
+            val segments    = keyWithReplica.split(SEPARATOR)
             val originalKey = segments(0)
 
             val bucket = envelope.data.asInstanceOf[ORMap[String, ChatTimeline]]
             //bucket.size
 
             if (port == 2550) {
+              //chat.bkt.5 size:1105259 bucket:[chat.28,chat.58,chat.88]
+              //chat.bkt.5 size:1797821 bucket:[chat.27,chat.57,chat.87]
               log.info("{} size:{} bucket:[{}]", originalKey, bts.size, bucket.keys.elements.mkString(","))
               val subMap = bucket.values
               subMap.foreach {
@@ -82,13 +84,17 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
               log.info("***********************")
             }
             //log.info("Load [{} - {}] size:{}", originalKey, envelope.data.asInstanceOf[ORMap[String, ChatTimeline]].size, bts.size)
-            savedResult = savedResult + (originalKey -> envelope)
+            savedResult = savedResult + (originalKey → envelope)
           }
           iter.next
         }
 
         if (savedResult.nonEmpty) {
-          log.info("Load all bucket keys [{}] took [{} ms]", savedResult.keySet.mkString(","), TimeUnit.NANOSECONDS.toMillis(System.nanoTime - ts))
+          log.info(
+            "Load all bucket keys [{}] took [{} ms]",
+            savedResult.keySet.mkString(","),
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime - ts)
+          )
           sender() ! LoadData(savedResult)
         }
 
@@ -107,8 +113,8 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
     case Store(key, data, reply) ⇒
       try {
         val keyWithReplica = key + SEPARATOR + replicaName
-        val keyBts = keyWithReplica.getBytes(ByteString.UTF_8)
-        val valueBts = serializer.toBinary(data)
+        val keyBts         = keyWithReplica.getBytes(ByteString.UTF_8)
+        val valueBts       = serializer.toBinary(data)
 
         /*if (ThreadLocalRandom.current.nextDouble > .95)
           log.warning("write key: {}", keyWithReplica)*/

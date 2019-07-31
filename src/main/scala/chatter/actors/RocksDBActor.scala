@@ -1,12 +1,12 @@
 package chatter.actors
 
 import java.io.File
-import java.nio.file.{ Files, Paths }
+import java.nio.file.{Files, Paths}
 
 import akka.cluster.Cluster
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
-import chatter.actors.RocksDBActor.{ InitRocksDb, RocksDbReply }
-import akka.actor.typed.{ ActorRef, Behavior, ExtensibleBehavior, Signal, TypedActorContext }
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import chatter.actors.RocksDBActor.{InitRocksDb, RocksDbReply}
+import akka.actor.typed.{ActorRef, Behavior, ExtensibleBehavior, Signal, TypedActorContext}
 import org.rocksdb._
 
 import scala.util.Try
@@ -21,7 +21,6 @@ object RocksDBActor {
   val name = "rocks-db"
 }
 
-//akka://timeline@127.0.0.1:2550/user/rock-db
 class RocksDBActor(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRocksDb] {
   RocksDB.loadLibrary()
 
@@ -47,6 +46,7 @@ class RocksDBActor(ctx: ActorContext[Unit]) extends ExtensibleBehavior[InitRocks
 
   override def receiveSignal(
     ctx: TypedActorContext[RocksDBActor.InitRocksDb],
-    msg: Signal): Behavior[RocksDBActor.InitRocksDb] =
+    msg: Signal
+  ): Behavior[RocksDBActor.InitRocksDb] =
     Behaviors.same
 }

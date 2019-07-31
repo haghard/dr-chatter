@@ -8,7 +8,8 @@ import scala.collection.immutable.SortedSet
 
 package object hashing {
 
-  @simulacrum.typeclass trait Hashing[Shard] {
+  @simulacrum.typeclass
+  trait Hashing[Shard] {
     def seed: Long
 
     def name: String
@@ -33,19 +34,20 @@ package object hashing {
   }
 
   /**
-   * Highest Random Weight (HRW) hashing
-   * https://github.com/clohfink/RendezvousHash
-   * https://www.pvk.ca/Blog/2017/09/24/rendezvous-hashing-my-baseline-consistent-distribution-method/
-   * A random uniform way to partition your keyspace up among the available nodes
-   *
-   *
-   *
-   */
-  @simulacrum.typeclass trait Rendezvous[ShardId] extends Hashing[ShardId] {
+    * Highest Random Weight (HRW) hashing
+    * https://github.com/clohfink/RendezvousHash
+    * https://www.pvk.ca/Blog/2017/09/24/rendezvous-hashing-my-baseline-consistent-distribution-method/
+    * A random uniform way to partition your keyspace up among the available nodes
+    *
+    *
+    *
+    */
+  @simulacrum.typeclass
+  trait Rendezvous[ShardId] extends Hashing[ShardId] {
     protected val Encoding = "UTF-8"
-    override val seed = 512l
-    override val name = "rendezvous-hashing"
-    protected val members = new ConcurrentSkipListSet[ShardId]()
+    override val seed      = 512L
+    override val name      = "rendezvous-hashing"
+    protected val members  = new ConcurrentSkipListSet[ShardId]()
 
     override def remove(shard: ShardId): Boolean =
       members.remove(shard)
@@ -58,21 +60,21 @@ package object hashing {
         throw new Exception("Replication factor more than the number of the ranges on a ring")
 
       var candidates = SortedSet.empty[(Long, ShardId)]((x: (Long, ShardId), y: (Long, ShardId)) ⇒ -x._1.compare(y._1))
-      val iter = members.iterator
+      val iter       = members.iterator
       while (iter.hasNext) {
-        val shard = iter.next
-        val keyBytes = key.getBytes(Encoding)
-        val nodeBytes = toBinary(shard)
-        val keyAndShard = ByteBuffer.allocate(keyBytes.length + nodeBytes.length).put(keyBytes).put(nodeBytes)
-        val shardHash128bit = CassandraMurmurHash.hash3_x64_128(keyAndShard, 0, keyAndShard.array.length, seed)(1)
-        candidates = candidates + (shardHash128bit -> shard)
+        val shard           = iter.next
+        val keyBytes        = key.getBytes(Encoding)
+        val nodeBytes       = toBinary(shard)
+        val keyAndShard     = ByteBuffer.allocate(keyBytes.length + nodeBytes.length).put(keyBytes).put(nodeBytes)
+        val shardHash128bit = CassandraHash.hash3_x64_128(keyAndShard, 0, keyAndShard.array.length, seed)(1)
+        candidates = candidates + (shardHash128bit → shard)
       }
       candidates.take(rf).map(_._2)
     }
 
     override def toString: String = {
       val iter = members.iterator
-      val sb = new StringBuilder
+      val sb   = new StringBuilder
       while (iter.hasNext) {
         val shard = iter.next
         sb.append(s"[${shard}]").append("->")
@@ -89,14 +91,15 @@ package object hashing {
     We want to have an even split of the token range so that load can be well distributed between nodes,
       as well as the ability to add new nodes and have them take a fair share of the load without the necessity
       to move data between the existing nodes
-  */
-  @simulacrum.typeclass trait Consistent[Shard] extends Hashing[Shard] {
+   */
+  @simulacrum.typeclass
+  trait Consistent[Shard] extends Hashing[Shard] {
     import scala.collection.JavaConverters._
-    import java.util.{ SortedMap ⇒ JSortedMap, TreeMap ⇒ JTreeMap }
+    import java.util.{SortedMap ⇒ JSortedMap, TreeMap ⇒ JTreeMap}
 
     private val numberOfVNodes = 4
-    override val seed = 512l
-    override val name = "consistent-hashing"
+    override val seed          = 512L
+    override val name          = "consistent-hashing"
 
     protected val Encoding = "UTF-8"
 
@@ -114,8 +117,8 @@ package object hashing {
       (0 to numberOfVNodes).foldLeft(true) { (acc, vNodeId) ⇒
         val vNodeSuffix = Array.ofDim[Byte](4)
         writeInt(vNodeSuffix, vNodeId, 0)
-        val bytes = toBinary(shard) ++ vNodeSuffix
-        val nodeHash128bit = CassandraMurmurHash.hash3_x64_128(ByteBuffer.wrap(bytes), 0, bytes.length, seed)(1)
+        val bytes          = toBinary(shard) ++ vNodeSuffix
+        val nodeHash128bit = CassandraHash.hash3_x64_128(ByteBuffer.wrap(bytes), 0, bytes.length, seed)(1)
         //val nodeHash128bit = com.twitter.algebird.CassandraMurmurHash.hash3_x64_128(ByteBuffer.wrap(bytes), 0, bytes.length, seed)(1)
         acc & shard == ring.remove(nodeHash128bit)
       }
@@ -127,7 +130,8 @@ package object hashing {
           val suffix = Array.ofDim[Byte](4)
           writeInt(suffix, i, 0)
           val shardBytes = toBinary(shard) ++ suffix
-          val nodeHash128bit = CassandraMurmurHash.hash3_x64_128(ByteBuffer.wrap(shardBytes), 0, shardBytes.length, seed)(1)
+          val nodeHash128bit =
+            CassandraHash.hash3_x64_128(ByteBuffer.wrap(shardBytes), 0, shardBytes.length, seed)(1)
           acc & (shard == ring.put(nodeHash128bit, shard))
         }
       } else false
@@ -137,11 +141,11 @@ package object hashing {
         throw new Exception("Replication factor more than the number of the ranges on a ring")
 
       val keyBytes = key.getBytes(Encoding)
-      val keyHash = CassandraMurmurHash.hash3_x64_128(ByteBuffer.wrap(keyBytes), 0, keyBytes.length, seed)(1)
+      val keyHash  = CassandraHash.hash3_x64_128(ByteBuffer.wrap(keyBytes), 0, keyBytes.length, seed)(1)
       if (ring.containsKey(keyHash)) {
         ring.keySet.asScala.take(RF).map(ring.get).to[scala.collection.immutable.Set]
       } else {
-        val tail = ring.tailMap(keyHash)
+        val tail       = ring.tailMap(keyHash)
         val candidates = tail.keySet.asScala.take(RF).map(ring.get).to[scala.collection.immutable.Set]
         //println(s"got ${candidates.mkString(",")} till the end of range")
         if (candidates.size < RF) {
@@ -155,7 +159,7 @@ package object hashing {
 
     override def toString: String = {
       val iter = ring.keySet.iterator
-      val sb = new StringBuilder
+      val sb   = new StringBuilder
       while (iter.hasNext) {
         val key = iter.next
         sb.append(s"[${key}: ${ring.get(key)}]").append("->")
@@ -167,18 +171,18 @@ package object hashing {
   object Consistent {
     implicit def instance0 = new Consistent[String] {
       override def toBinary(node: String): Array[Byte] = node.getBytes(Encoding)
-      override def validated(node: String): Boolean = true
+      override def validated(node: String): Boolean    = true
     }
     implicit def instance1 = new Consistent[Node] {
       override def toBinary(node: Node): Array[Byte] = s"${node.host}:${node.port}".getBytes(Encoding)
-      override def validated(node: Node): Boolean = true
+      override def validated(node: Node): Boolean    = true
     }
   }
 
   object Rendezvous {
     implicit def instance0 = new Rendezvous[String] {
       override def toBinary(node: String): Array[Byte] = node.getBytes(Encoding)
-      override def validated(node: String): Boolean = true
+      override def validated(node: String): Boolean    = true
     }
 
     implicit def instance1 = new Rendezvous[Node] {

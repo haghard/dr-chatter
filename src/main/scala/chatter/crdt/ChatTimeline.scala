@@ -10,10 +10,10 @@ it would be much better to only synchronize those bits that have indeed be subje
 
 This can be achieved by implementing the akka.cluster.ddata.DeltaReplicatedData
 
-*/
+ */
 case class ChatTimeline(
-    timeline: Vector[Message] = Vector.empty[Message],
-    versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
+  timeline: Vector[Message] = Vector.empty[Message],
+  versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
 ) extends akka.cluster.ddata.ReplicatedData {
 
   override type T = ChatTimeline
@@ -30,25 +30,24 @@ case class ChatTimeline(
     }
   }
 
-  //sort 2 sorted arrays in one array preserving messages with the same ts
-  private def merge0(tlA: Vector[Message], tlB: Vector[Message]) = {
+  //sort 2 sorted arrays saving messages with the same ts, never drop messages
+  private def merge0(tlA: Vector[Message], tlB: Vector[Message]): Vector[Message] = {
     @scala.annotation.tailrec
-    def divergedInd(a: Vector[Message], b: Vector[Message], limit: Int, i: Int = 0): Option[Int] = {
+    def divergedInd(a: Vector[Message], b: Vector[Message], limit: Int, i: Int = 0): Option[Int] =
       if (i < limit)
         if (a(i) != b(i)) Some(i)
         else divergedInd(a, b, limit, i + 1)
       else None
-    }
 
     val index = divergedInd(tlA, tlB, math.min(tlA.length, tlB.length))
     if (index.isDefined) {
-      val i = index.get
-      val (same, a) = tlA.splitAt(i)
-      val (_, b) = tlB.splitAt(i)
-      var iA = a.length - 1
-      var iB = b.length - 1
+      val i           = index.get
+      val (same, a)   = tlA.splitAt(i)
+      val (_, b)      = tlB.splitAt(i)
+      var iA          = a.length - 1
+      var iB          = b.length - 1
       var mergeResult = Vector.fill[Message](a.length + b.length)(null)
-      var limit = mergeResult.length
+      var limit       = mergeResult.length
       while (limit > 0) {
         limit -= 1
         val elem = if (iB < 0 || (iA >= 0 && a(iA).when >= b(iB).when)) {
@@ -74,8 +73,8 @@ case class ChatTimeline(
     We need an identity element to initialise empty timeline.
     Finally, we need idempotency, to ensure that if two machines hold the same data
     in a per-machine ChatTimeline, merging them will not lead to an incorrect result.
-  */
-  override def merge(that: ChatTimeline): ChatTimeline = {
+   */
+  override def merge(that: ChatTimeline): ChatTimeline =
     //that dominates this
     if (versions < that.versions) {
       that
@@ -88,9 +87,10 @@ case class ChatTimeline(
       val s = System.currentTimeMillis
       val r = merge0(timeline, that.timeline)
       val l = System.currentTimeMillis - s
-      println(s"${versions.elems.map { case (n, v) ⇒ s"${n.port}:${v}" }.mkString(",")} vs ${that.versions.elems.map { case (n, v) ⇒ s"${n.port}:${v}" }.mkString(",")} l:$l")
+      println(s"${versions.elems.map { case (n, v) ⇒ s"${n.port}:${v}" }.mkString(",")} vs ${that.versions.elems
+        .map { case (n, v)                         ⇒ s"${n.port}:${v}" }
+        .mkString(",")} l:$l")
       ChatTimeline(r, versions merge that.versions)
     } else this //means ==
-  }
 
 }

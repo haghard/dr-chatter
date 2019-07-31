@@ -1,14 +1,14 @@
 package akka.cluster.ddata
 
 import java.io.File
-import java.nio.file.{ Files, Paths }
+import java.nio.file.{Files, Paths}
 import java.sql.DriverManager
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{ Actor, ActorLogging }
+import akka.actor.{Actor, ActorLogging}
 import akka.cluster.Cluster
-import akka.cluster.ddata.DurableStore.{ DurableDataEnvelope, LoadAll, LoadAllCompleted, LoadData, LoadFailed, Store }
-import akka.serialization.{ SerializationExtension, SerializerWithStringManifest }
+import akka.cluster.ddata.DurableStore.{DurableDataEnvelope, LoadAll, LoadAllCompleted, LoadData, LoadFailed, Store}
+import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
 import chatter.actors.typed.ChatTimelineReplicator
 import chatter.crdt.ChatTimeline
 import com.typesafe.config.Config
@@ -19,7 +19,7 @@ import scala.util.Try
 final class H2DurableStore(config: Config) extends Actor with ActorLogging {
   Class.forName("org.h2.Driver")
 
-  val dbDir = "h2-db"
+  val dbDir   = "h2-db"
   val cluster = Cluster(context.system)
 
   Try(Files.createDirectory(Paths.get(s"./$dbDir")))
@@ -33,8 +33,8 @@ final class H2DurableStore(config: Config) extends Actor with ActorLogging {
   val DeleteQuery = "DELETE from KVS WHERE key = ? AND replica = ?"
 
   val serialization = SerializationExtension(context.system)
-  val serializer = serialization.serializerFor(classOf[DurableDataEnvelope]).asInstanceOf[SerializerWithStringManifest]
-  val manifest = serializer.manifest(new DurableDataEnvelope(Replicator.Internal.DeletedData))
+  val serializer    = serialization.serializerFor(classOf[DurableDataEnvelope]).asInstanceOf[SerializerWithStringManifest]
+  val manifest      = serializer.manifest(new DurableDataEnvelope(Replicator.Internal.DeletedData))
 
   val dataDir = config.getString("h2.dir") match {
     case path if path.endsWith("ddata") ⇒
@@ -57,9 +57,8 @@ final class H2DurableStore(config: Config) extends Actor with ActorLogging {
 
   val replicaName = segments(1)
 
-  override def postStop(): Unit = {
+  override def postStop(): Unit =
     con.close
-  }
 
   def active: Receive = {
     case Store(key, data, reply) ⇒
@@ -85,22 +84,31 @@ final class H2DurableStore(config: Config) extends Actor with ActorLogging {
 
   def init: Receive = {
     case LoadAll ⇒
-      val startTs = System.nanoTime
+      val startTs     = System.nanoTime
       var savedResult = Map.empty[String, DurableDataEnvelope]
       try {
         prepSelect.setString(1, replicaName)
         val rs = prepSelect.executeQuery
         while (rs.next) {
-          val key = rs.getString("key")
-          val bts = rs.getBytes("value")
+          val key      = rs.getString("key")
+          val bts      = rs.getBytes("value")
           val envelope = serializer.fromBinary(bts, manifest).asInstanceOf[DurableDataEnvelope]
-          log.info("Load {} [{} - {}] size:{}", replicaName, key, envelope.data.asInstanceOf[ChatTimeline].timeline.size, bts.size)
-          savedResult = savedResult + (key -> envelope)
+          log.info(
+            "Load {} [{} - {}] size:{}",
+            replicaName,
+            key,
+            envelope.data.asInstanceOf[ChatTimeline].timeline.size,
+            bts.size
+          )
+          savedResult = savedResult + (key → envelope)
         }
 
         if (savedResult.nonEmpty) {
-          log.info("Load all keys [{}] took [{} ms]", savedResult.keySet.mkString(","),
-                                                      TimeUnit.NANOSECONDS.toMillis(System.nanoTime - startTs))
+          log.info(
+            "Load all keys [{}] took [{} ms]",
+            savedResult.keySet.mkString(","),
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime - startTs)
+          )
           sender() ! LoadData(savedResult)
         }
 

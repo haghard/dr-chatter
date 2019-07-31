@@ -1,6 +1,6 @@
 import chatter.crdt.ChatTimeline
 import chatter.actors.typed.ReplicatorProtocol
-import akka.cluster.ddata.{ Key, ORMap, ReplicatedData }
+import akka.cluster.ddata.{Key, ORMap, ReplicatedData}
 
 package object chatter {
 
@@ -9,13 +9,15 @@ package object chatter {
     def ref: akka.actor.typed.ActorRef[T]
   }
 
-  case class LocalShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol]) extends Shard[ReplicatorProtocol]
+  case class LocalShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol])
+      extends Shard[ReplicatorProtocol]
 
-  case class RemoteShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol]) extends Shard[ReplicatorProtocol]
+  case class RemoteShard(name: String, ref: akka.actor.typed.ActorRef[ReplicatorProtocol])
+      extends Shard[ReplicatorProtocol]
 
   case class Node(host: String, port: Int)
 
-  case class Message(authId: Long, cnt: String, when: Long, tz: String)
+  case class Message(usrId: Long, cnt: String, when: Long, tz: String)
 
   case class ChatKey(chatName: String) extends Key[ChatTimeline](chatName)
 
@@ -26,12 +28,14 @@ package object chatter {
       if (x.when < y.when) -1 else if (x.when > y.when) 1 else 0
 
     implicit val nodeOrd = new scala.Ordering[Node] {
-      override def compare(a: Node, b: Node) =
-        Ordering.fromLessThan[Node] { (x, y) ⇒
-          if (x.host != y.host) x.host.compareTo(y.host) < 0
-          else if (x.port != y.port) x.port < y.port
-          else false
-        }.compare(a, b)
+      override def compare(a: Node, b: Node): Int =
+        Ordering
+          .fromLessThan[Node] { (x, y) ⇒
+            if (x.host != y.host) x.host.compareTo(y.host) < 0
+            else if (x.port != y.port) x.port < y.port
+            else false
+          }
+          .compare(a, b)
     }
   }
 
@@ -40,25 +44,27 @@ package object chatter {
 
     //30 entities and 6 buckets.
     //Each bucket contains 5 entities which means instead of one ORMap at least (30/5) = 6 ORMaps will be used
-    protected val maxNumber = 30l
-    protected val buckets = Array(5l, 10l, 15l, 20l, 25, maxNumber)
+    protected val maxNumber = 30L
+
+    //(5l to maxNumber).by(5l).toArray
+    protected val buckets = Array(5L, 10L, 15L, 20L, 25, maxNumber)
 
     def keyForBucket(key: Long): ReplicatedKey
   }
 
   /**
-   * We want to split a global ORMap up in (30/5) = 6 top level ORMaps.
-   * Top level entries are replicated individually, which has the trade-off that different entries may not be replicated at the same time
-   * and you may get inconsistencies between related entries (of cause if you have related entries).
-   * Separated top level entries cannot be updated atomically together.
-   */
+    * We want to split a global ORMap up in (30/5) = 6 top level ORMaps.
+    * Top level entries are replicated individually, which has the trade-off that different entries may not be replicated at the same time
+    * and you may get inconsistencies between related entries (of cause if you have related entries).
+    * Separated top level entries cannot be updated atomically together.
+    */
   trait ChatTimelineHashPartitioner extends Partitioner[ORMap[String, ChatTimeline]] {
     override type ReplicatedKey = ChatBucket
 
     override def keyForBucket(key: Long) = {
       import scala.collection.Searching._
       val index = math.abs(key % maxNumber)
-      val i = buckets.search(index).insertionPoint
+      val i     = buckets.search(index).insertionPoint
       //val i = math.abs(key.hashCode) % 10
       ChatBucket(i)
     }
