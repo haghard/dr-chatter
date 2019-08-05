@@ -7,7 +7,7 @@ import scala.collection.Searching._
 TODO: Rather than having to replicate the entirety of the ChatTimeline every time,
 it would be much better to only synchronize those bits that have indeed be subjected to a change.
 This can be achieved by implementing the akka.cluster.ddata.DeltaReplicatedData
-*/
+ */
 case class ChatTimeline(
   timeline: Vector[Message] = Vector.empty[Message],
   versions: VersionVector[Node] = VersionVector.empty[Node](Implicits.nodeOrd)
@@ -30,13 +30,12 @@ case class ChatTimeline(
   //Sort 2 sorted arrays saving messages with the same ts, never drop messages
   private def merge0(tlA: Vector[Message], tlB: Vector[Message]): Vector[Message] = {
     @scala.annotation.tailrec
-    def divergedInd(a: Vector[Message], b: Vector[Message], limit: Int, i: Int = 0): Option[Int] =
+    def divergedIndex(a: Vector[Message], b: Vector[Message], limit: Int, i: Int = 0): Option[Int] =
       if (i < limit)
-        if (a(i) != b(i)) Some(i)
-        else divergedInd(a, b, limit, i + 1)
+        if (a(i) != b(i)) Some(i) else divergedIndex(a, b, limit, i + 1)
       else None
 
-    val index = divergedInd(tlA, tlB, math.min(tlA.length, tlB.length))
+    val index = divergedIndex(tlA, tlB, math.min(tlA.length, tlB.length))
     if (index.isDefined) {
       val i           = index.get
       val (same, a)   = tlA.splitAt(i)
@@ -80,8 +79,8 @@ case class ChatTimeline(
       this
     } else //concurrent
     if (versions <> that.versions) {
-      /*val s = System.currentTimeMillis
       val r = merge0(timeline, that.timeline)
+      /*val s = System.currentTimeMillis
       val l = System.currentTimeMillis - s
       println(s"${versions.elems.map { case (n, v) ⇒ s"${n.port}:$v" }.mkString(",")} vs ${that.versions.elems
         .map { case (n, v)                         ⇒ s"${n.port}:$v" }
