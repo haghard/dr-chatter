@@ -2,7 +2,7 @@ import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbt.CrossVersion
 
-val akkaVersion = "2.5.23"
+val akkaVersion = "2.5.26"
 
 val `dr-chatter` = project
   .in(file("."))
@@ -34,10 +34,10 @@ val `dr-chatter` = project
 
       "ch.qos.logback" % "logback-classic" % "1.2.3",
 
-      "com.rbmhtechnology" %% "eventuate-crdt" % "0.10",
+      //"com.rbmhtechnology" %% "eventuate-crdt" % "0.10",
 
       //"org.hdrhistogram"  % "HdrHistogram" %  "2.1.10",
-      ("com.lihaoyi" % "ammonite" % "1.6.9" % "test").cross(CrossVersion.full),
+      ("com.lihaoyi" % "ammonite" % "1.7.4" % "test").cross(CrossVersion.full),
 
       "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion),
 
