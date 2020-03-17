@@ -2,7 +2,7 @@ import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbt.CrossVersion
 
-val akkaVersion = "2.5.26"
+val akkaVersion = "2.5.30"
 
 val `dr-chatter` = project
   .in(file("."))
@@ -10,7 +10,7 @@ val `dr-chatter` = project
   .settings(
     name := "dr-chatter",
     version := "0.0.1",
-    scalaVersion := "2.12.8",
+    scalaVersion := "2.12.10",
 
     //scalacOptions in Compile ++= Seq("-deprecation", "-feature", "-unchecked", "-Xlog-reflective-calls", "-Xlint"),
 
@@ -24,7 +24,7 @@ val `dr-chatter` = project
       "com.typesafe.akka" %% "akka-stream-typed" % akkaVersion,
       "com.github.TanUkkii007" %% "akka-cluster-custom-downing" % "0.0.12",
 
-      "com.typesafe.akka" %% "akka-http" % "10.1.9",
+      "com.typesafe.akka" %% "akka-http" % "10.1.10",
       "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
 
       "com.github.mpilquist" %% "simulacrum" % "0.12.0",
@@ -36,8 +36,8 @@ val `dr-chatter` = project
 
       //"com.rbmhtechnology" %% "eventuate-crdt" % "0.10",
 
-      //"org.hdrhistogram"  % "HdrHistogram" %  "2.1.10",
-      ("com.lihaoyi" % "ammonite" % "1.7.4" % "test").cross(CrossVersion.full),
+      "org.hdrhistogram"  % "HdrHistogram" %  "2.1.10",
+      ("com.lihaoyi" % "ammonite" % "1.9.2" % "test").cross(CrossVersion.full),
 
       "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion),
 
