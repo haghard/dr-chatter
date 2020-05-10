@@ -22,7 +22,7 @@ case class WriteMessage(
 ) extends ReplicatorWrite
 
 //internal replicator messages protocol
-case class RWriteSuccess(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorWriteReply
+case class RWriteSuccess(chatName: String, replyTo: ActorRef[WriteResponses], start: Long) extends ReplicatorWriteReply
 case class RWriteFailure(chatName: String, errorMsg: String, replyTo: ActorRef[WriteResponses])
     extends ReplicatorWriteReply
 case class RWriteTimeout(chatName: String, replyTo: ActorRef[WriteResponses]) extends ReplicatorWriteReply
@@ -33,10 +33,14 @@ case class PassiveReadChatTimeline(chatId: Long, sinkRef: SinkRef[Array[Byte]], 
     extends ReplicatorRead
 
 //internal replicator messages protocol
-case class RChatTimelineReply(tl: ChatTimeline, replyTo: ActorRef[ReadReply]) extends ReplicatorReadReply
+case class RChatTimelineReply(tl: ChatTimeline, replyTo: ActorRef[ReadReply], start: Long) extends ReplicatorReadReply
 
-case class RChatTimelineReplySink(tl: ChatTimeline, sinkRef: SinkRef[Array[Byte]], replyTo: ActorRef[ReadReply])
-    extends ReplicatorReadReply
+case class RChatTimelineReplySink(
+  tl: ChatTimeline,
+  sinkRef: SinkRef[Array[Byte]],
+  replyTo: ActorRef[ReadReply],
+  start: Long
+) extends ReplicatorReadReply
 
 case class RNotFoundChatTimelineReply(chatName: String, replyTo: ActorRef[ReadReply]) extends ReplicatorReadReply
 case class RGetFailureChatTimelineReply(error: String, replyTo: ActorRef[ReadReply])  extends ReplicatorReadReply

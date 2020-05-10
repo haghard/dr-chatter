@@ -27,6 +27,7 @@ message ReadChatTimelinePB {
     int64  chatId = 1;
     //ActorRef[ReadReply]
     bytes replyTo = 2;
+    int64 start = 3;
 }
 
 message RWriteSuccessPB {
@@ -34,6 +35,7 @@ message RWriteSuccessPB {
     string chatName = 1;
     //ActorRef[WriteResponses]
     bytes replyTo = 2;
+    int64 start = 3;
 }
 
 message RWriteFailurePB {
@@ -56,6 +58,7 @@ message RChatTimelineReplyPB {
     ChatTimelinePB history = 1;
     //ActorRef[ReadReply]
     bytes replyTo = 2;
+    int64 start = 3;
 }
 
 message RNotFoundChatTimelineReplyPB {

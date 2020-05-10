@@ -2,7 +2,7 @@ import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbt.CrossVersion
 
-val akkaVersion = "2.5.30"
+val akkaVersion = "2.5.31"
 
 val `dr-chatter` = project
   .in(file("."))
@@ -10,7 +10,7 @@ val `dr-chatter` = project
   .settings(
     name := "dr-chatter",
     version := "0.0.1",
-    scalaVersion := "2.12.10",
+    scalaVersion :=  "2.13.2", //"2.12.11",
 
     //scalacOptions in Compile ++= Seq("-deprecation", "-feature", "-unchecked", "-Xlog-reflective-calls", "-Xlint"),
 
@@ -22,12 +22,11 @@ val `dr-chatter` = project
       "com.typesafe.akka" %% "akka-cluster-typed" % akkaVersion,
       "com.typesafe.akka" %% "akka-distributed-data" % akkaVersion,
       "com.typesafe.akka" %% "akka-stream-typed" % akkaVersion,
-      "com.github.TanUkkii007" %% "akka-cluster-custom-downing" % "0.0.12",
+      //"com.github.TanUkkii007" %% "akka-cluster-custom-downing" % "0.0.12",
+      "org.sisioh"        %% "akka-cluster-custom-downing" % "0.1.0",
 
-      "com.typesafe.akka" %% "akka-http" % "10.1.10",
+      "com.typesafe.akka" %% "akka-http" % "10.1.11",
       "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
-
-      "com.github.mpilquist" %% "simulacrum" % "0.12.0",
 
       "org.rocksdb" % "rocksdbjni" %  "5.17.2",
       "com.h2database"  % "h2"      %  "1.4.199",
@@ -37,7 +36,7 @@ val `dr-chatter` = project
       //"com.rbmhtechnology" %% "eventuate-crdt" % "0.10",
 
       "org.hdrhistogram"  % "HdrHistogram" %  "2.1.10",
-      ("com.lihaoyi" % "ammonite" % "1.9.2" % "test").cross(CrossVersion.full),
+      ("com.lihaoyi" % "ammonite" % "2.1.1" % "test").cross(CrossVersion.full),
 
       "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion),
 
@@ -69,5 +68,3 @@ PB.targets in Compile := Seq(
 )
 
 libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
-
-addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)

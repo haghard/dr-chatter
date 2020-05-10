@@ -2,14 +2,14 @@ package chatter
 
 import akka.cluster.Cluster
 import chatter.actors.RocksDBActor
-import com.typesafe.config.{Config, ConfigFactory}
 import akka.routing.ConsistentHashingGroup
+import com.typesafe.config.{Config, ConfigFactory}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.cluster.routing.{ClusterRouterGroup, ClusterRouterGroupSettings}
 import chatter.actors.typed.{ChatTimelineReplicatorClassic, ReplicatorProtocol, TimelineReader, TimelineWriter}
 
-import scala.collection.immutable.TreeSet
 import scala.concurrent.duration._
+import scala.collection.immutable.TreeSet
 import akka.actor.typed.scaladsl.adapter._
 
 //runMain chatter.Runner
@@ -22,7 +22,7 @@ object Runner extends App {
   val shards = Vector("alpha", "betta", "gamma")
   val ids    = Seq.range[Long](0L, 100L)
 
-  val writeDuration = 20.second * 1
+  val writeDuration = 30.second * 2
 
   val commonConfig = ConfigFactory.parseString(
     s"""
@@ -63,6 +63,12 @@ object Runner extends App {
    * Creates a ref to an existing remote actors with the given path(name)
    */
   def spawnProxyReplicator(remoteShardName: String, localShardsSize: Int, ctx: ActorContext[Unit]): RemoteShard = {
+
+    /*
+    val group = akka.actor.typed.scaladsl.Routers.group(???) //serviceKey
+      .withConsistentHashingRouting(1, p => "a")
+     */
+
     val remoteProxyRouter = ctx.actorOf(
       ClusterRouterGroup(
         ConsistentHashingGroup(Nil),
@@ -81,10 +87,10 @@ object Runner extends App {
 
   def spawnShards(local: Seq[String], remote: String, ctx: ActorContext[Unit]): Vector[Shard[ReplicatorProtocol]] = {
     val r: Vector[Shard[ReplicatorProtocol]] = {
-      val zero = new TreeSet[Shard[ReplicatorProtocol]]()(
-        (a: Shard[ReplicatorProtocol], b: Shard[ReplicatorProtocol]) ⇒ a.name.compareTo(b.name)
+      val zero = new TreeSet[Shard[ReplicatorProtocol]]()((a: Shard[ReplicatorProtocol], b: Shard[ReplicatorProtocol]) ⇒
+        a.name.compareTo(b.name)
       )
-      local./:(zero)(_ + spawnReplicator(_, ctx)) + spawnProxyReplicator(remote, local.size, ctx)
+      local.foldLeft(zero)(_ + spawnReplicator(_, ctx)) + spawnProxyReplicator(remote, local.size, ctx)
     }.toVector
     r
   }
@@ -162,19 +168,19 @@ object Runner extends App {
     portConfig(2552).withFallback(rolesConfig(1, 2)) /*.withFallback(commonConfig)*/.withFallback(ConfigFactory.load())
   )
 
-  val node1Cluster = Cluster(node1.toUntyped)
-  val node2Cluster = Cluster(node2.toUntyped)
-  val node3Cluster = Cluster(node3.toUntyped)
+  val node1Cluster = Cluster(node1.toClassic)
+  val node2Cluster = Cluster(node2.toClassic)
+  val node3Cluster = Cluster(node3.toClassic)
 
   node1Cluster.join(node1Cluster.selfAddress)
   node2Cluster.join(node1Cluster.selfAddress)
   node3Cluster.join(node1Cluster.selfAddress)
 
-  Helpers.waitForAllNodesUp(node1.toUntyped, node2.toUntyped, node3.toUntyped)
+  Helpers.waitForAllNodesUp(node1.toClassic, node2.toClassic, node3.toClassic)
 
   Helpers.wait(writeDuration)
 
-  Helpers.wait(30.second)
+  Helpers.wait(40.second)
 
   node1Cluster.leave(node1Cluster.selfAddress)
   node1.terminate

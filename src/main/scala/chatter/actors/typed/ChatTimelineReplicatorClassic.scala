@@ -1,5 +1,6 @@
 package chatter.actors.typed
 
+import java.io.{File, FileOutputStream, PrintStream}
 import java.nio.charset.StandardCharsets
 
 import akka.actor.typed.{ActorRef, Behavior, ExtensibleBehavior, PostStop, PreRestart, Signal, Terminated, TypedActorContext}
@@ -20,10 +21,9 @@ import akka.cluster.ddata.Replicator.{ReadFrom, WriteTo}
 import akka.stream.scaladsl.{BroadcastHub, Flow, Keep, MergeHub, Sink, SinkQueueWithCancel, Source, StreamRefs}
 import akka.stream.{ActorMaterializerSettings, Attributes, OverflowStrategy, SinkRef, StreamRefAttributes}
 import chatter.actors.typed.Replicator.v1.MessagePB
+import org.HdrHistogram.Histogram
 
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
-import scala.util.{Failure, Success}
 
 object ChatTimelineReplicatorClassic {
 
@@ -33,9 +33,9 @@ object ChatTimelineReplicatorClassic {
     ConfigFactory.parseString(
       s"""
          | role = $shardName
-         | gossip-interval = 2 s
+         | gossip-interval = 3 s
          | use-dispatcher = ""
-         | notify-subscribers-interval = 1 s
+         | notify-subscribers-interval = 3 s
          | max-delta-elements = 1000
          | pruning-interval = 120 s
          | max-pruning-dissemination = 300 s
@@ -69,8 +69,11 @@ object ChatTimelineReplicatorClassic {
   def writeAdapter(ctx: ActorContext[ReplicatorProtocol]): ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
     ctx.messageAdapter {
       case ddata.Replicator
-            .UpdateSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))) ⇒
-        RWriteSuccess(chatKey, replyTo)
+            .UpdateSuccess(
+            k @ ChatBucket(_),
+            Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked, start: Long))
+            ) ⇒
+        RWriteSuccess(chatKey, replyTo, start)
       case ddata.Replicator.ModifyFailure(
           k @ ChatBucket(_),
           _,
@@ -92,26 +95,35 @@ object ChatTimelineReplicatorClassic {
   def readAdapter(ctx: ActorContext[ReplicatorProtocol]): ActorRef[GetResponse[ORMap[String, ChatTimeline]]] =
     ctx.messageAdapter {
       case r @ ddata.Replicator
-            .GetSuccess(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
+            .GetSuccess(
+              k @ ChatBucket(_),
+              Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, start: Long))
+            ) ⇒
         r.get[ORMap[String, ChatTimeline]](k)
           .get(chatKey)
-          .fold[ReplicatorProtocol](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo))
+          .fold[ReplicatorProtocol](RNotFoundChatTimelineReply(chatKey, replyTo))(RChatTimelineReply(_, replyTo, start))
 
       case r @ ddata.Replicator.GetSuccess(
             k @ ChatBucket(_),
-            Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef: SinkRef[Array[Byte]]))
+            Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef: SinkRef[Array[Byte]], start: Long))
           ) ⇒
         r.get[ORMap[String, ChatTimeline]](k)
           .get(chatKey)
           .fold[ReplicatorProtocol](RNotFoundChatTimelineReply(chatKey, replyTo))(
-            RChatTimelineReplySink(_, sinkRef, replyTo)
+            RChatTimelineReplySink(_, sinkRef, replyTo, start)
           )
 
       case ddata.Replicator
-            .GetFailure(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
+            .GetFailure(
+            k @ ChatBucket(_),
+            Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef, start: Long))
+            ) ⇒
         RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
       case ddata.Replicator
-            .NotFound(k @ ChatBucket(_), Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked))) ⇒
+            .NotFound(
+            k @ ChatBucket(_),
+            Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef, start: Long))
+            ) ⇒
         RNotFoundChatTimelineReply(chatKey, replyTo)
       case other ⇒
         //ctx.log.error("Unsupported message form replicator: {}", other)
@@ -129,9 +141,9 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
   val to = 5.seconds
 
   val wc = WriteLocal //WriteTo(2, 3.seconds)
-  val rc = ReadLocal  //ReadFrom(2, to)
+  val rc = /*ReadLocal*/ ReadFrom(2, to)
 
-  val cluster = Cluster(ctx.system.toUntyped)
+  val cluster = Cluster(ctx.system.toClassic)
   val address = cluster.selfUniqueAddress.address
   val node    = Node(address.host.get, address.port.get)
   val cnf     = replicatorConfig(shardName, classOf[akka.cluster.ddata.RocksDurableStore].getName)
@@ -147,18 +159,28 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
     cnf.getString("durable.store-actor-class")
   )
 
+  val st = ActorMaterializerSettings.create(ctx.system.toClassic).withInputBuffer(bs, bs)
   implicit val mat = akka.stream.ActorMaterializer(
     ActorMaterializerSettings
-      .create(ctx.system.toUntyped)
+      .create(ctx.system.toClassic)
+      .withInputBuffer(bs, bs)
+      .withStreamRefSettings(st.streamRefSettings.withSubscriptionTimeout(to).withBufferCapacity(bs))
+  )(ctx.system.toClassic)
+
+  /*implicit val mat = akka.stream.ActorMaterializer(
+    ActorMaterializerSettings
+      .create(ctx.system.toClassic)
       .withInputBuffer(bs, bs)
     //.withDispatcher("")
-  )(ctx.system.toUntyped)
+  )(ctx.system.toClassic)*/
 
   implicit val ec = mat.executionContext
 
   val atts = StreamRefAttributes
     .subscriptionTimeout(to)
     .and(akka.stream.Attributes.inputBuffer(bs, bs))
+
+  val h = new Histogram(3600000000000L, 3)
 
   //BroadcastHub.sink
   /*val (sinkHub, srcHub) =
@@ -204,18 +226,17 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
           ORMap.empty[String, ChatTimeline],
           wc,
           writeAdapter(ctx.asScala),
-          Some((chatKey, msg.replyTo))
+          Some((chatKey, msg.replyTo, System.nanoTime))
         ) { bucket ⇒
           bucket
             .get(chatKey)
             .fold(
               bucket :+ (chatKey → ChatTimeline().+(Message(msg.userId, msg.content, msg.when, msg.tz), node))
-            ) { es ⇒
-              bucket :+ (chatKey, es + (Message(msg.userId, msg.content, msg.when, msg.tz), node))
-            }
+            )(es ⇒ bucket :+ (chatKey, es + (Message(msg.userId, msg.content, msg.when, msg.tz), node)))
         }
         this
       case w: RWriteSuccess ⇒
+        //h.recordValue(System.nanoTime - w.start)
         w.replyTo ! WSuccess(w.chatName)
         this
       case w: RWriteFailure ⇒
@@ -229,21 +250,25 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
       case r: PassiveReadChatTimeline ⇒
         val BucketKey = keyForBucket(r.chatId)
         val chatKey   = s"chat.${r.chatId}"
-        akkaReplicator tell Get(BucketKey, rc, readAdapter(ctx.asScala), Some((chatKey, r.replyTo, r.sinkRef)))
+        akkaReplicator tell Get(
+          BucketKey,
+          rc,
+          readAdapter(ctx.asScala),
+          Some((chatKey, r.replyTo, r.sinkRef, System.nanoTime))
+        )
         Behaviors.same
 
       case r: RChatTimelineReplySink ⇒
         val batch = r.tl.timeline
         val src = Source
             .fromIterator(() ⇒ batch.iterator)
-            .map(
-              m ⇒
-                MessagePB(
-                  m.usrId,
-                  com.google.protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)),
-                  m.when,
-                  m.tz
-                ).toByteArray
+            .map(m ⇒
+              MessagePB(
+                m.usrId,
+                com.google.protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)),
+                m.when,
+                m.tz
+              ).toByteArray
             ) ++ Source.single(Array[Byte](0)) //to be able to stop gracefully
 
         //src.runWith(sinkHub0)
@@ -258,34 +283,34 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
          */
 
         src.runWith(r.sinkRef) //stream the result back
+        h.recordValue(System.nanoTime - r.start)
         Behaviors.same
 
       //********  active reads *************/
       case r: ReadChatTimeline ⇒
         val BucketKey = keyForBucket(r.chatId)
         val chatKey   = s"chat.${r.chatId}"
-        akkaReplicator tell Get(BucketKey, rc, readAdapter(ctx.asScala), Some((chatKey, r.replyTo)))
+        akkaReplicator tell Get(BucketKey, rc, readAdapter(ctx.asScala), Some((chatKey, r.replyTo, System.nanoTime)))
         Behaviors.same
 
       case r: RChatTimelineReply ⇒
-        import akka.pattern.pipe
         //Source(r.tl.timeline)
-        Source
-          .fromIterator(() ⇒ r.tl.timeline.iterator)
-          .map(
-            m ⇒
+        val srcRef =
+          Source
+            .fromIterator(() ⇒ r.tl.timeline.iterator)
+            .map(m ⇒
               MessagePB(
                 m.usrId,
                 com.google.protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)),
                 m.when,
                 m.tz
               ).toByteArray
-          )
-          //.take(bs)
-          .toMat(StreamRefs.sourceRef[Array[Byte]].addAttributes(atts))(Keep.right)
-          .run()
-          .map(RemoteChatTimelineSource(_))(ec)
-          .pipeTo(r.replyTo.toUntyped)
+            )
+            //.take(bs)
+            .toMat(StreamRefs.sourceRef[Array[Byte]].addAttributes(atts))(Keep.right)
+            .run()
+
+        r.replyTo.tell(RemoteChatTimelineSource(srcRef))
 
         /*Source // (r.tl.timeline.take(bs))
           .fromIterator(() ⇒ r.tl.timeline.iterator)
@@ -313,6 +338,12 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
         r.replyTo ! RFailure(r.error)
         Behaviors.same
       case r: RNotFoundChatTimelineReply ⇒
+        val f   = new File("./histograms/" + address.port.get + ".txt")
+        val out = new FileOutputStream(f)
+        h.outputPercentileDistribution(new PrintStream(out), 1000000.0) //in millis
+
+        //Thread.sleep(500)
+
         r.replyTo ! RNotFound(r.chatName)
         Behaviors.same
     }

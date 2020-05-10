@@ -6,7 +6,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.stream.{ActorAttributes, ActorMaterializer, ActorMaterializerSettings, Attributes, StreamRefAttributes}
-import akka.stream.scaladsl.{Keep, Sink, SinkQueueWithCancel, StreamRefs}
+import akka.stream.scaladsl.{Keep, RestartSink, Sink, SinkQueueWithCancel, StreamRefs}
 import chatter.actors.typed.Replicator.v1.MessagePB
 import akka.routing.ConsistentHashingRouter.ConsistentHashableEnvelope
 
@@ -19,12 +19,12 @@ object TimelineReader {
       val bs        = 1 << 5
       val sinkQueue = Sink.queue[MessagePB]().withAttributes(Attributes.inputBuffer(bs, bs))
 
-      val st = ActorMaterializerSettings.create(ctx.system.toUntyped).withInputBuffer(bs, bs)
+      val st = ActorMaterializerSettings.create(ctx.system.toClassic).withInputBuffer(bs, bs)
       implicit val mat = akka.stream.ActorMaterializer(
         ActorMaterializerSettings
-          .create(ctx.system.toUntyped)
+          .create(ctx.system.toClassic)
           .withStreamRefSettings(st.streamRefSettings.withSubscriptionTimeout(5.seconds).withBufferCapacity(bs))
-      )(ctx.system.toUntyped)
+      )(ctx.system.toClassic)
 
       implicit val ec = mat.executionContext
 
@@ -50,23 +50,25 @@ object TimelineReader {
         ctx.log.info("reader {} chat-{} -> ind:{}", port, chatId, ind)
         //Passive mode with StreamRefs.sinkRef. It says I'm ready to consume data. Send it to me"
 
+        //RestartSink.withBackoff(???,???,0) {}
+
         val (fSinkRef, outQueue) =
           StreamRefs
             .sinkRef[Array[Byte]]()
             //.addAttributes(settings)
             .takeWhile(_.size > 1) //needed if MergeHub and BroadcastHub are used
             .map(MessagePB.parseFrom)
+            //.to(Sink.foreach { e: MessagePB => () })
             .toMat(sinkQueue)(Keep.both)
             .run()
 
-        fSinkRef.foreach { sinkRef ⇒
-          shards(ind) match {
-            case LocalShard(_, ref) ⇒
-              ref.tell(PassiveReadChatTimeline(chatId, sinkRef, replyTo))
-            case RemoteShard(_, ref) ⇒
-              ref.toUntyped ! ConsistentHashableEnvelope(PassiveReadChatTimeline(chatId, sinkRef, replyTo), chatId)
-          }
+        shards(ind) match {
+          case LocalShard(_, ref) ⇒
+            ref.tell(PassiveReadChatTimeline(chatId, fSinkRef, replyTo))
+          case RemoteShard(_, ref) ⇒
+            ref.toClassic ! ConsistentHashableEnvelope(PassiveReadChatTimeline(chatId, fSinkRef, replyTo), chatId)
         }
+
         drainQueue(chatId, shards, outQueue)
       }
 
@@ -77,8 +79,11 @@ object TimelineReader {
         cnt: Long = 0
       ): Unit =
         q.pull.map { r ⇒
-          if (r.isDefined) drainQueue(chatId, shards, q, cnt + 1L)
-          else {
+          if (r.isDefined) {
+            //if(cnt % 10 == 0) ctx.log.warning("er {} chat-{} -> size:{}", port, chatId, cnt)
+
+            drainQueue(chatId, shards, q, cnt + 1L)
+          } else {
             ctx.log.warning("done reader {} chat-{} -> size:{}", port, chatId, cnt)
             readPassive(chatId + 1L, shards, ctx.self)
           }

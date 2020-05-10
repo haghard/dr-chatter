@@ -23,8 +23,8 @@ class ChatTimelineSerializer(val system: ExtendedActorSystem) extends Serializer
         val versions = ct.versions.elems./:(TreeMap.empty[String, Long]) { (acc, c) ⇒
           acc + (s"${c._1.host}:${c._1.port}" → c._2)
         }
-        val proto = ct.timeline.map(
-          m ⇒ MessagePB(m.usrId, protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)), m.when, m.tz)
+        val proto = ct.timeline.map(m ⇒
+          MessagePB(m.usrId, protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)), m.when, m.tz)
         )
         ChatTimelinePB(proto, versions).toByteArray
     }

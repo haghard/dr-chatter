@@ -18,7 +18,7 @@ class ChatTimelineWriterSerializer(val system: ExtendedActorSystem) extends Seri
   override def toBinary(obj: AnyRef): Array[Byte] =
     obj match {
       case AskForShards(replyTo) ⇒
-        val pb = ProtobufSerializer.serializeActorRef(replyTo.toUntyped)
+        val pb = ProtobufSerializer.serializeActorRef(replyTo.toClassic)
         //println(s"toBinary: ${replyTo.path} ")
         pb.toByteArray
       case WSuccess(name) ⇒
