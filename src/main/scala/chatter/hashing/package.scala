@@ -17,9 +17,8 @@ package object hashing {
 
     def withShards(shard: util.Collection[Shard]): Hashing[Shard] = {
       val iter = shard.iterator
-      while (iter.hasNext) {
+      while (iter.hasNext)
         add(iter.next)
-      }
       this
     }
 
@@ -119,7 +118,7 @@ package object hashing {
 
     override def add(shard: Shard): Boolean =
       //Hash each node to several numberOfVNodes
-      if (validated(shard)) {
+      if (validated(shard))
         (0 to numberOfVNodes).foldLeft(true) { (acc, i) ⇒
           val suffix = Array.ofDim[Byte](4)
           writeInt(suffix, i, 0)
@@ -128,7 +127,7 @@ package object hashing {
             CassandraHash.hash3_x64_128(ByteBuffer.wrap(shardBytes), 0, shardBytes.length, seed)(1)
           acc & (shard == ring.put(nodeHash128bit, shard))
         }
-      } else false
+      else false
 
     override def shardFor(key: String, RF: Int): Set[Shard] = {
       if (RF > ring.keySet.size)
@@ -136,9 +135,9 @@ package object hashing {
 
       val keyBytes = key.getBytes(StandardCharsets.UTF_8)
       val keyHash  = CassandraHash.hash3_x64_128(ByteBuffer.wrap(keyBytes), 0, keyBytes.length, seed)(1)
-      if (ring.containsKey(keyHash)) {
+      if (ring.containsKey(keyHash))
         ring.keySet.asScala.take(RF).map(ring.get).toSet[Shard]
-      } else {
+      else {
         val tail       = ring.tailMap(keyHash)
         val candidates = tail.keySet.asScala.take(RF).map(ring.get).toSet[Shard]
         //println(s"got ${candidates.mkString(",")} till the end of range")
@@ -163,29 +162,33 @@ package object hashing {
   }
 
   object Consistent {
-    implicit def instance0 = new Consistent[String] {
-      override def toBinary(node: String): Array[Byte] = node.getBytes(StandardCharsets.UTF_8)
-      override def validated(node: String): Boolean    = true
-    }
-    implicit def instance1 = new Consistent[Node] {
-      override def toBinary(node: Node): Array[Byte] = s"${node.host}:${node.port}".getBytes(StandardCharsets.UTF_8)
-      override def validated(node: Node): Boolean    = true
-    }
+    implicit def instance0 =
+      new Consistent[String] {
+        override def toBinary(node: String): Array[Byte] = node.getBytes(StandardCharsets.UTF_8)
+        override def validated(node: String): Boolean    = true
+      }
+    implicit def instance1 =
+      new Consistent[Node] {
+        override def toBinary(node: Node): Array[Byte] = s"${node.host}:${node.port}".getBytes(StandardCharsets.UTF_8)
+        override def validated(node: Node): Boolean    = true
+      }
 
     def apply[T: Consistent] = implicitly[Consistent[T]]
   }
 
   object Rendezvous {
-    implicit def instance0 = new Rendezvous[String] {
-      override def toBinary(node: String): Array[Byte] = node.getBytes(StandardCharsets.UTF_8)
-      override def validated(node: String): Boolean    = true
-    }
+    implicit def instance0 =
+      new Rendezvous[String] {
+        override def toBinary(node: String): Array[Byte] = node.getBytes(StandardCharsets.UTF_8)
+        override def validated(node: String): Boolean    = true
+      }
 
-    implicit def instance1 = new Rendezvous[Node] {
-      override def toBinary(node: Node): Array[Byte] =
-        s"${node.host}:${node.port}".getBytes(StandardCharsets.UTF_8)
-      override def validated(node: Node): Boolean = true
-    }
+    implicit def instance1 =
+      new Rendezvous[Node] {
+        override def toBinary(node: Node): Array[Byte] =
+          s"${node.host}:${node.port}".getBytes(StandardCharsets.UTF_8)
+        override def validated(node: Node): Boolean = true
+      }
 
     def apply[T: Rendezvous] = implicitly[Rendezvous[T]]
   }

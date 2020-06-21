@@ -70,15 +70,15 @@ object ChatTimelineReplicatorClassic {
     ctx.messageAdapter {
       case ddata.Replicator
             .UpdateSuccess(
-            k @ ChatBucket(_),
-            Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked, start: Long))
+              k @ ChatBucket(_),
+              Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked, start: Long))
             ) ⇒
         RWriteSuccess(chatKey, replyTo, start)
       case ddata.Replicator.ModifyFailure(
-          k @ ChatBucket(_),
-          _,
-          cause,
-          Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
+            k @ ChatBucket(_),
+            _,
+            cause,
+            Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
           ) ⇒
         RWriteFailure(chatKey, cause.getMessage, replyTo)
       case ddata.Replicator
@@ -115,14 +115,14 @@ object ChatTimelineReplicatorClassic {
 
       case ddata.Replicator
             .GetFailure(
-            k @ ChatBucket(_),
-            Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef, start: Long))
+              k @ ChatBucket(_),
+              Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef, start: Long))
             ) ⇒
         RGetFailureChatTimelineReply(s"GetFailure: ${chatKey}", replyTo)
       case ddata.Replicator
             .NotFound(
-            k @ ChatBucket(_),
-            Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef, start: Long))
+              k @ ChatBucket(_),
+              Some((chatKey: String, replyTo: ActorRef[ReadReply] @unchecked, sinkRef, start: Long))
             ) ⇒
         RNotFoundChatTimelineReply(chatKey, replyTo)
       case other ⇒
@@ -295,7 +295,7 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
 
       case r: RChatTimelineReply ⇒
         //Source(r.tl.timeline)
-        val srcRef =
+        val srcRefF =
           Source
             .fromIterator(() ⇒ r.tl.timeline.iterator)
             .map(m ⇒
@@ -310,7 +310,7 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
             .toMat(StreamRefs.sourceRef[Array[Byte]].addAttributes(atts))(Keep.right)
             .run()
 
-        r.replyTo.tell(RemoteChatTimelineSource(srcRef))
+        srcRefF.foreach(srcRef ⇒ r.replyTo.tell(RemoteChatTimelineSource(srcRef)))
 
         /*Source // (r.tl.timeline.take(bs))
           .fromIterator(() ⇒ r.tl.timeline.iterator)
