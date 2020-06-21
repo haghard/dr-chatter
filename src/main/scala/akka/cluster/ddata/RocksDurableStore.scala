@@ -103,10 +103,8 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
       } catch {
         case NonFatal(e) ⇒
           throw new LoadFailed("failed to load durable ddata store", e)
-      } finally {
-        if (iter ne null)
-          iter.close
-      }
+      } finally if (iter ne null)
+        iter.close
   }
 
   def active(db: RocksDB): Receive = {

@@ -39,14 +39,14 @@ class ChatTimelineWriterSerializer(val system: ExtendedActorSystem) extends Seri
       val ref = ProtobufSerializer.deserializeActorRef(system, ActorRefData.parseFrom(bytes)).toTyped[ReadReply]
       //println(s"fromBinary: ${ref.path}")
       AskForShards(ref)
-    } else if (manifest == classOf[WSuccess].getName) {
+    } else if (manifest == classOf[WSuccess].getName)
       WSuccess(WSuccessPB.parseFrom(bytes).chatName)
-    } else if (manifest == classOf[WFailure].getName) {
+    else if (manifest == classOf[WFailure].getName) {
       val pb = WFailurePB.parseFrom(bytes)
       WFailure(pb.chatName, pb.errorMsg)
-    } else if (manifest == classOf[WTimeout].getName) {
+    } else if (manifest == classOf[WTimeout].getName)
       WTimeout(WTimeoutPB.parseFrom(bytes).chatName)
-    } else
+    else
       throw new IllegalStateException(
         s"Deserialization for $manifest not supported. Check fromBinary method in ${this.getClass.getName} class."
       )

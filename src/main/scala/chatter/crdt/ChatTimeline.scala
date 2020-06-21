@@ -72,12 +72,12 @@ case class ChatTimeline(
    */
   override def merge(that: ChatTimeline): ChatTimeline =
     //that dominates this
-    if (versions < that.versions) {
+    if (versions < that.versions)
       that
-    } else //this dominates that
-    if (versions > that.versions) {
+    else //this dominates that
+    if (versions > that.versions)
       this
-    } else //concurrent
+    else //concurrent
     if (versions <> that.versions) {
       val r = merge0(timeline, that.timeline)
       /*val s = System.currentTimeMillis
