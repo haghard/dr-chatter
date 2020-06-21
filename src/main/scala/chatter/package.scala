@@ -76,18 +76,15 @@ package object chatter {
   trait ChatTimelineHashPartitioner extends Partitioner[ORMap[String, ChatTimeline]] {
     override type ReplicatedKey = ChatBucket
 
-    def lookupFroRing(hash: Long): ChatBucket =
-      (ring.keysIteratorFrom(hash) ++ ring.keysIteratorFrom(ring.firstKey))
-        .map(ring(_))
-        .take(1)
-        .next()
+    def lookupFromRing(hash: Long): ChatBucket =
+      (ring.valuesIteratorFrom(hash) ++ ring.valuesIteratorFrom(ring.firstKey)).next()
 
     override def keyForBucket(key: Long) = {
       import scala.collection.Searching._
-      val index: Long = math.abs(key % maxNumber)
+      val bucketNum: Long = math.abs(key % maxNumber)
       //buckets0(math.abs(key % maxNumber).toInt)
 
-      val i = buckets.search(index).insertionPoint
+      val i = buckets.search(bucketNum).insertionPoint
       //val i = math.abs(key.hashCode) % 10
       ChatBucket(i)
     }
