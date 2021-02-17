@@ -261,15 +261,15 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
       case r: RChatTimelineReplySink ⇒
         val batch = r.tl.timeline
         val src = Source
-            .fromIterator(() ⇒ batch.iterator)
-            .map(m ⇒
-              MessagePB(
-                m.usrId,
-                com.google.protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)),
-                m.when,
-                m.tz
-              ).toByteArray
-            ) ++ Source.single(Array[Byte](0)) //to be able to stop gracefully
+          .fromIterator(() ⇒ batch.iterator)
+          .map(m ⇒
+            MessagePB(
+              m.usrId,
+              com.google.protobuf.ByteString.copyFrom(m.cnt.getBytes(StandardCharsets.UTF_8)),
+              m.when,
+              m.tz
+            ).toByteArray
+          ) ++ Source.single(Array[Byte](0)) //to be able to stop gracefully
 
         //src.runWith(sinkHub0)
         /*Source
@@ -309,8 +309,7 @@ class ChatTimelineReplicatorClassic(ctx: ActorContext[Unit], shardName: String)
             //.take(bs)
             .toMat(StreamRefs.sourceRef[Array[Byte]].addAttributes(atts))(Keep.right)
             .run()
-
-        srcRefF.foreach(srcRef ⇒ r.replyTo.tell(RemoteChatTimelineSource(srcRef)))
+        r.replyTo.tell(RemoteChatTimelineSource(srcRefF))
 
         /*Source // (r.tl.timeline.take(bs))
           .fromIterator(() ⇒ r.tl.timeline.iterator)

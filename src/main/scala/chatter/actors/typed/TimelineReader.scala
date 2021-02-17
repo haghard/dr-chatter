@@ -62,13 +62,11 @@ object TimelineReader {
             .toMat(sinkQueue)(Keep.both)
             .run()
 
-        fSinkRef.foreach { sink ⇒
-          shards(ind) match {
-            case LocalShard(_, ref) ⇒
-              ref.tell(PassiveReadChatTimeline(chatId, sink, replyTo))
-            case RemoteShard(_, ref) ⇒
-              ref.toClassic ! ConsistentHashableEnvelope(PassiveReadChatTimeline(chatId, sink, replyTo), chatId)
-          }
+        shards(ind) match {
+          case LocalShard(_, ref) ⇒
+            ref.tell(PassiveReadChatTimeline(chatId, fSinkRef, replyTo))
+          case RemoteShard(_, ref) ⇒
+            ref.toClassic ! ConsistentHashableEnvelope(PassiveReadChatTimeline(chatId, fSinkRef, replyTo), chatId)
         }
 
         drainQueue(chatId, shards, outQueue)
@@ -133,10 +131,9 @@ object TimelineReader {
         case KnownShards(shards) ⇒
           ctx.log.info("KnownShards: {}", shards.toString)
           readPassive(0L, shards, ctx.self)
+          //OR readActive(0L, shards, ctx.self)
           Behaviors.same
 
-        //OR
-        //readActive(0L, shards, ctx.self)
         case RNotFound(name) ⇒
           ctx.log.warning(s"reader:$port NotFoundChatTime: $name")
           Behaviors.same

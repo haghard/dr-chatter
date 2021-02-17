@@ -35,29 +35,29 @@ case class ChatTimeline(
         if (a(i) != b(i)) Some(i) else divergedIndex(a, b, limit, i + 1)
       else None
 
-    val index = divergedIndex(tlA, tlB, math.min(tlA.length, tlB.length))
-    if (index.isDefined) {
-      val i           = index.get
-      val (same, a)   = tlA.splitAt(i)
-      val (_, b)      = tlB.splitAt(i)
-      var iA          = a.length - 1
-      var iB          = b.length - 1
-      var mergeResult = Vector.fill[Message](a.length + b.length)(null)
-      var limit       = mergeResult.length
-      while (limit > 0) {
-        limit -= 1
-        val elem = if (iB < 0 || (iA >= 0 && a(iA).when >= b(iB).when)) {
-          iA -= 1
-          a(iA + 1)
-        } else {
-          iB -= 1
-          b(iB + 1)
+    divergedIndex(tlA, tlB, math.min(tlA.length, tlB.length)) match {
+      case Some(i) ⇒
+        val (same, a)   = tlA.splitAt(i)
+        val (_, b)      = tlB.splitAt(i)
+        var iA          = a.length - 1
+        var iB          = b.length - 1
+        var mergeResult = Vector.fill[Message](a.length + b.length)(null)
+        var limit       = mergeResult.length
+        while (limit > 0) {
+          limit -= 1
+          val elem = if (iB < 0 || (iA >= 0 && a(iA).when >= b(iB).when)) {
+            iA -= 1
+            a(iA + 1)
+          } else {
+            iB -= 1
+            b(iB + 1)
+          }
+          mergeResult = mergeResult.updated(limit, elem)
         }
-        mergeResult = mergeResult.updated(limit, elem)
-      }
-      same ++ mergeResult
-    } else if (tlA.size > tlB.size) tlA
-    else tlB
+        same ++ mergeResult
+      case None ⇒
+        if (tlA.size > tlB.size) tlA else tlB
+    }
   }
 
   /*

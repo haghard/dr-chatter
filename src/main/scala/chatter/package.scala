@@ -67,8 +67,7 @@ package object chatter {
     def keyForBucket(key: Long): ReplicatedKey
   }
 
-  /**
-    * We want to split a global ORMap up in (30/5) = 6 top level ORMaps.
+  /** We want to split a global ORMap up in (30/5) = 6 top level ORMaps.
     * Top level entries are replicated individually, which has the trade-off that different entries may not be replicated at the same time
     * and you may get inconsistencies between related entries (of cause if you have related entries).
     * Separated top level entries cannot be updated atomically together.

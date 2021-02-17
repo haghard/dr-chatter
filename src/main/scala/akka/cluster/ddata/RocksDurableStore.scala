@@ -51,80 +51,77 @@ class RocksDurableStore(config: Config) extends Actor with ActorLogging with Sta
     }
   }
 
-  def load(db: RocksDB): Receive = {
-    case LoadAll ⇒
-      val ts                  = System.nanoTime
-      var savedResult         = Map.empty[String, DurableDataEnvelope]
-      var iter: RocksIterator = null
-      try {
-        iter = db.newIterator
-        iter.seekToFirst
-        while (iter.isValid) {
-          val keyWithReplica = new String(iter.key, ByteString.UTF_8)
-          val bts            = iter.value
-          val envelope       = serializer.fromBinary(bts, manifest).asInstanceOf[DurableDataEnvelope]
+  def load(db: RocksDB): Receive = { case LoadAll ⇒
+    val ts                  = System.nanoTime
+    var savedResult         = Map.empty[String, DurableDataEnvelope]
+    var iter: RocksIterator = null
+    try {
+      iter = db.newIterator
+      iter.seekToFirst
+      while (iter.isValid) {
+        val keyWithReplica = new String(iter.key, ByteString.UTF_8)
+        val bts            = iter.value
+        val envelope       = serializer.fromBinary(bts, manifest).asInstanceOf[DurableDataEnvelope]
 
-          //chat-1.betta-repl
-          if (keyWithReplica.endsWith(replicaName)) {
-            val segments    = keyWithReplica.split(SEPARATOR)
-            val originalKey = segments(0)
+        //chat-1.betta-repl
+        if (keyWithReplica.endsWith(replicaName)) {
+          val segments    = keyWithReplica.split(SEPARATOR)
+          val originalKey = segments(0)
 
-            val bucket = envelope.data.asInstanceOf[ORMap[String, ChatTimeline]]
-            //bucket.size
+          val bucket = envelope.data.asInstanceOf[ORMap[String, ChatTimeline]]
+          //bucket.size
 
-            if (port == 2550) {
-              //chat.bkt.5 size:1105259 bucket:[chat.28,chat.58,chat.88]
-              //chat.bkt.5 size:1797821 bucket:[chat.27,chat.57,chat.87]
-              log.info("{} size:{} bucket:[{}]", originalKey, bts.size, bucket.keys.elements.mkString(","))
-              val subMap = bucket.values
-              subMap.foreach {
-                case (key, tl) ⇒
-                  log.info("ket:{} - size:{}", key, tl.timeline.size)
-              }
-              log.info("***********************")
+          if (port == 2550) {
+            //chat.bkt.5 size:1105259 bucket:[chat.28,chat.58,chat.88]
+            //chat.bkt.5 size:1797821 bucket:[chat.27,chat.57,chat.87]
+            log.info("{} size:{} bucket:[{}]", originalKey, bts.size, bucket.keys.elements.mkString(","))
+            val subMap = bucket.values
+            subMap.foreach { case (key, tl) ⇒
+              log.info("ket:{} - size:{}", key, tl.timeline.size)
             }
-            //log.info("Load [{} - {}] size:{}", originalKey, envelope.data.asInstanceOf[ORMap[String, ChatTimeline]].size, bts.size)
-            savedResult = savedResult + (originalKey → envelope)
+            log.info("***********************")
           }
-          iter.next
+          //log.info("Load [{} - {}] size:{}", originalKey, envelope.data.asInstanceOf[ORMap[String, ChatTimeline]].size, bts.size)
+          savedResult = savedResult + (originalKey → envelope)
         }
+        iter.next
+      }
 
-        if (savedResult.nonEmpty) {
-          log.info(
-            "Load all bucket keys [{}] took [{} ms]",
-            savedResult.keySet.mkString(","),
-            TimeUnit.NANOSECONDS.toMillis(System.nanoTime - ts)
-          )
-          sender() ! LoadData(savedResult)
-        }
+      if (savedResult.nonEmpty) {
+        log.info(
+          "Load all bucket keys [{}] took [{} ms]",
+          savedResult.keySet.mkString(","),
+          TimeUnit.NANOSECONDS.toMillis(System.nanoTime - ts)
+        )
+        sender() ! LoadData(savedResult)
+      }
 
-        sender() ! LoadAllCompleted
-        context become active(db)
-      } catch {
-        case NonFatal(e) ⇒
-          throw new LoadFailed("failed to load durable ddata store", e)
-      } finally if (iter ne null)
-        iter.close
+      sender() ! LoadAllCompleted
+      context become active(db)
+    } catch {
+      case NonFatal(e) ⇒
+        throw new LoadFailed("failed to load durable ddata store", e)
+    } finally if (iter ne null)
+      iter.close
   }
 
-  def active(db: RocksDB): Receive = {
-    case Store(key, data, reply) ⇒
-      try {
-        val keyWithReplica = key + SEPARATOR + replicaName
-        val keyBts         = keyWithReplica.getBytes(ByteString.UTF_8)
-        val valueBts       = serializer.toBinary(data)
+  def active(db: RocksDB): Receive = { case Store(key, data, reply) ⇒
+    try {
+      val keyWithReplica = key + SEPARATOR + replicaName
+      val keyBts         = keyWithReplica.getBytes(ByteString.UTF_8)
+      val valueBts       = serializer.toBinary(data)
 
-        /*if (ThreadLocalRandom.current.nextDouble > .95)
+      /*if (ThreadLocalRandom.current.nextDouble > .95)
           log.warning("write key: {}", keyWithReplica)*/
 
-        db.put(rocksWriteOpts, keyBts, valueBts)
-        db.flush(flushOps) //for durability
-        reply.foreach(r ⇒ r.replyTo ! r.successMsg)
-      } catch {
-        case NonFatal(e) ⇒
-          log.error(e, "Failed to store [{}]", key)
-          reply.foreach(r ⇒ r.replyTo ! r.failureMsg)
-      }
+      db.put(rocksWriteOpts, keyBts, valueBts)
+      db.flush(flushOps) //for durability
+      reply.foreach(r ⇒ r.replyTo ! r.successMsg)
+    } catch {
+      case NonFatal(e) ⇒
+        log.error(e, "Failed to store [{}]", key)
+        reply.foreach(r ⇒ r.replyTo ! r.failureMsg)
+    }
   }
 
   override def receive: Receive = awaitDB
