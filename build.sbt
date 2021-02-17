@@ -10,7 +10,7 @@ val `dr-chatter` = project
   .settings(
     name := "dr-chatter",
     version := "0.0.1",
-    scalaVersion :=  "2.13.4", //"2.12.13",
+    scalaVersion :=  "2.13.2", //"2.12.11",
 
     //scalacOptions in Compile ++= Seq("-deprecation", "-feature", "-unchecked", "-Xlog-reflective-calls", "-Xlint"),
 

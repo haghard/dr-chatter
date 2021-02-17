@@ -141,28 +141,26 @@ case class VersionVector[T: scala.Ordering](elems: SortedMap[T, Long]) extends V
         case (h1 +: t1, h2 +: t2) ⇒
           // compare the nodes
           val nc = ord.compare(h1._1, h2._1)
-          if (nc == 0) {
+          if (nc == 0)
             // both nodes exist compare the timestamps
             // same timestamp so just continue with the next nodes
             if (h1._2 == h2._2) compare(t1, t2, currentOrder)
-            else if (h1._2 < h2._2) {
+            else if (h1._2 < h2._2)
               // t1 is less than t2, so i1 can only be Before
               if (currentOrder eq After) Concurrent
               else compare(t1, t2, Before)
-            } else {
-              // t2 is less than t1, so i1 can only be After
-              if (currentOrder eq Before) Concurrent
-              else compare(t1, t2, After)
-            }
-          } else if (nc < 0) {
+            else
+            // t2 is less than t1, so i1 can only be After
+            if (currentOrder eq Before) Concurrent
+            else compare(t1, t2, After)
+          else if (nc < 0)
             // this node only exists in i1 so i1 can only be After
             if (currentOrder eq Before) Concurrent
             else compare(t1, h2 +: t2, After)
-          } else {
-            // this node only exists in i2 so i1 can only be Before
-            if (currentOrder eq After) Concurrent
-            else compare(h1 +: t1, t2, Before)
-          }
+          else
+          // this node only exists in i2 so i1 can only be Before
+          if (currentOrder eq After) Concurrent
+          else compare(h1 +: t1, t2, Before)
 
         case (h1 +: t1, _) ⇒
           // i2 is empty but i1 is not, so i1 can only be After

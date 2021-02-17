@@ -92,25 +92,25 @@ object ChatTimelineReplicator {
       val writeAdapter: ActorRef[UpdateResponse[ORMap[String, ChatTimeline]]] =
         ctx.messageAdapter {
           case akka.cluster.ddata.Replicator.UpdateSuccess(
-              k @ ChatBucket(_),
-              Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked, start: Long))
+                k @ ChatBucket(_),
+                Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked, start: Long))
               ) ⇒
             RWriteSuccess(chatKey, replyTo, start)
           case akka.cluster.ddata.Replicator.ModifyFailure(
-              k @ ChatBucket(_),
-              _,
-              cause,
-              Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
+                k @ ChatBucket(_),
+                _,
+                cause,
+                Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
               ) ⇒
             RWriteFailure(chatKey, cause.getMessage, replyTo)
           case akka.cluster.ddata.Replicator.UpdateTimeout(
-              k @ ChatBucket(_),
-              Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
+                k @ ChatBucket(_),
+                Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
               ) ⇒
             RWriteTimeout(chatKey, replyTo)
           case akka.cluster.ddata.Replicator.StoreFailure(
-              k @ ChatBucket(_),
-              Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
+                k @ ChatBucket(_),
+                Some((chatKey: String, replyTo: ActorRef[WriteResponses] @unchecked))
               ) ⇒
             RWriteFailure(chatKey, "StoreFailure", replyTo)
           case other ⇒

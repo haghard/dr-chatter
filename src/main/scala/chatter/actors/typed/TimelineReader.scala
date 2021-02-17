@@ -62,11 +62,13 @@ object TimelineReader {
             .toMat(sinkQueue)(Keep.both)
             .run()
 
-        shards(ind) match {
-          case LocalShard(_, ref) ⇒
-            ref.tell(PassiveReadChatTimeline(chatId, fSinkRef, replyTo))
-          case RemoteShard(_, ref) ⇒
-            ref.toClassic ! ConsistentHashableEnvelope(PassiveReadChatTimeline(chatId, fSinkRef, replyTo), chatId)
+        fSinkRef.foreach { sink ⇒
+          shards(ind) match {
+            case LocalShard(_, ref) ⇒
+              ref.tell(PassiveReadChatTimeline(chatId, sink, replyTo))
+            case RemoteShard(_, ref) ⇒
+              ref.toClassic ! ConsistentHashableEnvelope(PassiveReadChatTimeline(chatId, sink, replyTo), chatId)
+          }
         }
 
         drainQueue(chatId, shards, outQueue)
@@ -79,11 +81,10 @@ object TimelineReader {
         cnt: Long = 0
       ): Unit =
         q.pull.map { r ⇒
-          if (r.isDefined) {
+          if (r.isDefined)
             //if(cnt % 10 == 0) ctx.log.warning("er {} chat-{} -> size:{}", port, chatId, cnt)
-
             drainQueue(chatId, shards, q, cnt + 1L)
-          } else {
+          else {
             ctx.log.warning("done reader {} chat-{} -> size:{}", port, chatId, cnt)
             readPassive(chatId + 1L, shards, ctx.self)
           }

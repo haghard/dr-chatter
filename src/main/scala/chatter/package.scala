@@ -2,6 +2,8 @@ import chatter.crdt.ChatTimeline
 import chatter.actors.typed.ReplicatorProtocol
 import akka.cluster.ddata.{Key, ORMap, ReplicatedData}
 
+import scala.collection.immutable.SortedMap
+
 package object chatter {
 
   trait Shard[T] {
@@ -21,7 +23,7 @@ package object chatter {
 
   case class ChatKey(chatName: String) extends Key[ChatTimeline](chatName)
 
-  case class ChatBucket(bucketNbr: Long) extends Key[ORMap[String, ChatTimeline]](s"chat.bkt.${bucketNbr}")
+  case class ChatBucket(bucketNbr: Long) extends Key[ORMap[String, ChatTimeline]](s"chat.bkt.$bucketNbr")
 
   object Implicits {
     val msgOrd: Ordering[Message] = (x: Message, y: Message) ⇒
@@ -47,7 +49,20 @@ package object chatter {
     protected val maxNumber = 30L
 
     //(5l to maxNumber).by(5l).toArray
-    protected val buckets = Array(5L, 10L, 15L, 20L, 25, maxNumber)
+    protected val buckets: Array[Long] = Array(5L, 10L, 15L, 20L, 25L, maxNumber)
+
+    protected val ring: SortedMap[Long, ChatBucket] =
+      SortedMap(
+        5L        → ChatBucket(0),
+        10L       → ChatBucket(1),
+        15L       → ChatBucket(2),
+        20L       → ChatBucket(3),
+        25L       → ChatBucket(4),
+        maxNumber → ChatBucket(5)
+      )
+
+    protected val buckets0: Array[ChatBucket] =
+      Array.tabulate(6)(i ⇒ ChatBucket(i))
 
     def keyForBucket(key: Long): ReplicatedKey
   }
@@ -61,10 +76,15 @@ package object chatter {
   trait ChatTimelineHashPartitioner extends Partitioner[ORMap[String, ChatTimeline]] {
     override type ReplicatedKey = ChatBucket
 
-    override def keyForBucket(key: Long): ChatBucket = {
+    def lookupFromRing(hash: Long): ChatBucket =
+      (ring.valuesIteratorFrom(hash) ++ ring.valuesIteratorFrom(ring.firstKey)).next()
+
+    override def keyForBucket(key: Long) = {
       import scala.collection.Searching._
-      val index = math.abs(key % maxNumber)
-      val i     = buckets.search(index).insertionPoint
+      val bucketNum: Long = math.abs(key % maxNumber)
+      //buckets0(math.abs(key % maxNumber).toInt)
+
+      val i = buckets.search(bucketNum).insertionPoint
       //val i = math.abs(key.hashCode) % 10
       ChatBucket(i)
     }
